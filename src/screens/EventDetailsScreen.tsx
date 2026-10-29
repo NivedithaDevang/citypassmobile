@@ -187,6 +187,8 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
     navigation.navigate('Booking', {
       event: {
         ...event,
+        tickets,
+        event_tickets: tickets,
         selected_ticket_id: selectedTicket?.id ?? null,
         selected_ticket_name: selectedTicket?.name ?? null,
         selected_ticket_price: selectedTicket ? Number(selectedTicket.price) : currentPrice,

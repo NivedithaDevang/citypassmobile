@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet,
@@ -23,6 +23,8 @@ type Props = {
         selected_ticket_name?: string | null;
         selected_ticket_price?: number | null;
         available_capacity?: number;
+        event_tickets?: EventTicket[];
+        tickets?: EventTicket[];
       };
     };
   };
@@ -55,7 +57,7 @@ export default function BookingScreen({ route, navigation }: Props) {
 
   // Selected Category
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(
-    event?.selected_ticket_id ?? null
+    event?.selected_ticket_id ?? ticketList[0]?.id ?? null
   );
 
   // Booking states
@@ -68,19 +70,19 @@ export default function BookingScreen({ route, navigation }: Props) {
 
   // Load ticket categories from server if not pre-populated in route
   useEffect(() => {
-    if (ticketList.length > 0 || !event?.id) {
-      if (ticketList.length > 0 && !selectedTicketId) {
-        setSelectedTicketId(ticketList[0].id);
-      }
-      return;
-    }
+    if (ticketList.length > 0 || !event?.id) return;
 
     let isMounted = true;
     const fetchTiers = async () => {
       setLoadingTickets(true);
       try {
         const res = await api.get(`/v1/events/${event.id}/tickets`);
-        const fetched = res.data?.data || res.data || [];
+        const responseData = res.data?.data ?? res.data;
+        const fetched = Array.isArray(responseData)
+          ? responseData
+          : Array.isArray(responseData?.tickets)
+            ? responseData.tickets
+            : [];
         if (isMounted) {
           setTicketList(fetched);
           if (fetched.length > 0) {
@@ -110,7 +112,14 @@ export default function BookingScreen({ route, navigation }: Props) {
     return () => {
       isMounted = false;
     };
-  }, [event?.id]);
+  }, [
+    event?.id,
+    event?.price,
+    event?.selected_ticket_id,
+    event?.selected_ticket_name,
+    event?.selected_ticket_price,
+    ticketList.length,
+  ]);
 
   const activeTicket = useMemo(() => {
     return ticketList.find((t) => t.id === selectedTicketId) || ticketList[0];

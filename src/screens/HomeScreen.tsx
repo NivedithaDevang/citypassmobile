@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingBottom: 100, // Extra space so bottom tab bar doesn't obscure cards
+    paddingBottom: 100,
   },
 
   sectionTitle: {
@@ -203,12 +203,11 @@ const styles = StyleSheet.create({
 
   columnWrapper: {
     justifyContent: 'space-between',
-    gap: 12,
     marginBottom: 14,
   },
 
   card: {
-    flex: 1,
+    width: '48%',
     backgroundColor: '#2e0b3b',
     borderRadius: 14,
     overflow: 'hidden',

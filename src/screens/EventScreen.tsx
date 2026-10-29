@@ -14,6 +14,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../services/api';
 import { type Events } from '../types/auth';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 type EventCardData = Events & {
   id?: string | number;
   title?: string;
@@ -75,7 +76,6 @@ export default function EventScreen({ navigation }: any) {
       const matchesCategory =
         selectedCategory === 'All' ||
         event.category?.toLowerCase() === selectedCategory.toLowerCase();
-      // Add custom date parsing matching logic here when dates are connected
       return matchesCategory;
     });
   }, [events, selectedCategory]);
@@ -195,42 +195,42 @@ export default function EventScreen({ navigation }: any) {
   };
 
   return (
-    <>
     <SafeAreaProvider style={styles.container}>
-          <StatusBar style="light" />
+      <StatusBar style="light" />
 
-          {loading ? (
-              <View style={styles.loaderContainer}>
-                  <ActivityIndicator size="large" color="#D8B4E2" />
-              </View>
-          ) : (
-              <FlatList
-                  data={filteredEvents}
-                  renderItem={renderEventCard}
-                  keyExtractor={(index) => index.toString()}
-                  numColumns={2}
-                  columnWrapperStyle={styles.columnWrapper}
-                  contentContainerStyle={styles.listContent}
-                  showsVerticalScrollIndicator={false}
-                  ListHeaderComponent={renderHeader}
-                  refreshControl={<RefreshControl
-                      refreshing={refreshing}
-                      onRefresh={onRefresh}
-                      tintColor="#D8B4E2" />}
-                  ListEmptyComponent={<View style={styles.emptyContainer}>
-                      <Text style={styles.emptyTitle}>No events found</Text>
-                      <Text style={styles.emptySubtitle}>
-                          Try changing your filters or check back later.
-                      </Text>
-                  </View>} />
-          )}
-      </SafeAreaProvider>
-      
-      
-      </>
+      {loading ? (
+        <View style={styles.loaderContainer}>
+          <ActivityIndicator size="large" color="#D8B4E2" />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredEvents}
+          renderItem={renderEventCard}
+          keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+          numColumns={2}
+          columnWrapperStyle={styles.columnWrapper}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListHeaderComponent={renderHeader}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#D8B4E2"
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyTitle}>No events found</Text>
+              <Text style={styles.emptySubtitle}>
+                Try changing your filters or check back later.
+              </Text>
+            </View>
+          }
+        />
+      )}
+    </SafeAreaProvider>
   );
-  
-
 }
 
 const styles = StyleSheet.create({
@@ -334,12 +334,11 @@ const styles = StyleSheet.create({
   columnWrapper: {
     paddingHorizontal: 16,
     justifyContent: 'space-between',
-    gap: 12,
     marginBottom: 14,
   },
 
   card: {
-    flex: 1,
+    width: '48%', // Replaced flex: 1 with 48% width to stop single odd cards from stretching
     backgroundColor: '#1E0528',
     borderRadius: 16,
     overflow: 'hidden',
