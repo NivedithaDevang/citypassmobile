@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet,
@@ -11,11 +11,80 @@ import {
   ActivityIndicator,
   Linking,
   Modal,
+  FlatList,
 } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { api } from '../services/api';
 import { type Events } from '../types/auth';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS } from '../constants/Color';
+
+const colors = COLORS;
+
+interface TermsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const TERMS_LIST: string[] = [
+  "By accepting, holding or using a ticket, you acknowledge that you have read, understood, accepted and agreed to the full terms and conditions.",
+  "The organizer reserves the right of admission.",
+  "The organizer may alter the event schedule without prior notice.",
+  "Entry is permitted only after a thorough security check and through designated entrances.",
+  "Re-entry is not permitted.",
+  "The venue does not allow food, beverages, liquids, bottles, cans, tins, bags, lighters, matchboxes, flammable items, or any illegal or hazardous substances inside the venue or seating area (\"Prohibited Items\"). Security personnel will search ticket holders' belongings at entry. If a ticket holder refuses a search and/or is found in possession of Prohibited Items, the organizer may deny entry without any refund or compensation.",
+  "This is a drug-free event. If any ticket holder uses, possesses, procures, supplies, or consumes drugs, narcotics, or psychotropic substances (as defined under the Narcotic Drugs and Psychotropic Substances Act, 1985), the organizer will immediately evict them from the venue without refund or compensation. The organizer also reserves the right to initiate legal action as permitted under applicable law.",
+  "The organizer reserves the right to refuse admission or eject any ticket holder who appears intoxicated, under the influence of drugs, behaves dangerously or inappropriately, or engages in conduct likely to cause harassment, damage, injury, or nuisance. The organizer's decision in this regard shall be final.",
+  "The use of audio or video recording equipment, including still cameras, is strictly prohibited.",
+  "The organizer issues this ticket in accordance with the rules and regulations of the event organizer and venue management.",
+  "The organizer does not accept responsibility for any injury to persons or for any loss or damage to personal property brought to the event.",
+  "In accordance with applicable law, persons below the legally permissible age may not purchase or consume alcoholic beverages.",
+  "The organizer and venue are not liable for any issues arising from unauthorized copies or reproductions of this ticket. Except as stated herein, the ticket is non-refundable and cannot be exchanged, cancelled, or returned once purchased.",
+  "If the organizer cancels the performance, the organizer will refund the ticket fee. All other charges, including parking fees, internet handling fees, and order processing fees, remain non-refundable.",
+  "The ticket is invalid if the security features affixed to it are tampered with.",
+  "You voluntarily assume all risks related to contracting COVID-19, H1N1, or any other communicable disease or illness, whether occurring before, during, or after the event, and waive all claims against the organizer arising from such risks.",
+  "The event is subject to force majeure conditions.",
+  "We request your cooperation at all times.",
+  "All disputes or claims shall be subject to the exclusive jurisdiction of the courts in Mumbai.",
+  "The organizer may modify these terms and conditions at its discretion from time to time.",
+  "All secondary performances (if any) and the event lineup are subject to the artist's discretion.",
+  "To ensure a high-quality user experience, the organizer may collect certain information (including personally identifiable information such as name, email address, or phone number) at the time of booking, registration, or payment, in accordance with its Terms and Conditions and Privacy Policy."
+];
+
+export const TermsModal = ({ isOpen, onClose }: TermsModalProps) => {
+  return (
+    <Modal
+      visible={isOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={modalStyles.overlay}>
+        <View style={modalStyles.content}>
+          <View style={modalStyles.header}>
+            <Text style={modalStyles.title}>Terms & Conditions</Text>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close-circle" size={24} color={colors.textMuted || colors.grey} />
+            </TouchableOpacity>
+          </View>
+
+          <FlatList
+            data={TERMS_LIST}
+            keyExtractor={(_, index) => index.toString()}
+            showsVerticalScrollIndicator
+            style={modalStyles.list}
+            renderItem={({ item, index }) => (
+              <View style={modalStyles.termRow}>
+                <Text style={modalStyles.bullet}>{index + 1}.</Text>
+                <Text style={modalStyles.termText}>{item}</Text>
+              </View>
+            )}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 export interface EventTicket {
   id: number;
@@ -44,21 +113,6 @@ type Props = {
     };
   };
   navigation: any;
-};
-
-const COLORS = {
-  background: '#0B0B10',
-  surface: '#15151D',
-  surfaceLight: '#1E1B29',
-  primary: '#8B5CF6',
-  primaryLight: '#C4B5FD',
-  primaryBorder: '#7C3AED',
-  text: '#FFFFFF',
-  muted: '#A1A1AA',
-  border: '#292633',
-  green: '#4ADE80',
-  red: '#F87171',
-  yellow: '#FBBF24',
 };
 
 export default function EventDetailsScreen({ route, navigation }: Props) {
@@ -199,7 +253,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
+        <ActivityIndicator size="large" color={colors.purple} />
         <Text style={styles.loadingText}>Loading event details...</Text>
       </View>
     );
@@ -222,7 +276,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
     event.organiser_stage_name || event.organiser_user_name || 'CityPass Organiser';
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="light" />
 
       {/* Floating Top Controls */}
@@ -251,9 +305,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
             style={styles.heroImage}
             resizeMode="cover"
           />
-          <View style={styles.heroOverlay} />
 
-          {/* Chips Row at bottom of poster */}
           <View style={styles.heroChipsRow}>
             <View style={styles.categoryPill}>
               <Text style={styles.categoryText}>
@@ -280,7 +332,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
           {/* Organizer Card */}
           <View style={styles.organizerCard}>
             <View style={styles.avatar}>
-              <Ionicons name="person-outline" size={20} color={COLORS.primaryLight} />
+              <Ionicons name="person-outline" size={20} color={colors.purple} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.smallCaption}>PRESENTED BY</Text>
@@ -292,7 +344,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
           <View style={styles.metaCardContainer}>
             <View style={styles.metaRow}>
               <View style={styles.metaIcon}>
-                <Ionicons name="calendar-outline" size={20} color={COLORS.primaryLight} />
+                <Ionicons name="calendar-outline" size={20} color={colors.purple} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.smallCaption}>DATE & TIME</Text>
@@ -307,7 +359,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
 
             <View style={styles.metaRow}>
               <View style={styles.metaIcon}>
-                <Ionicons name="location-outline" size={20} color={COLORS.primaryLight} />
+                <Ionicons name="location-outline" size={20} color={colors.purple} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.smallCaption}>VENUE</Text>
@@ -319,7 +371,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
                 {event.location ? (
                   <TouchableOpacity style={styles.mapsBtn} onPress={openMaps}>
                     <Text style={styles.mapsText}>View on Maps</Text>
-                    <Ionicons name="open-outline" size={12} color={COLORS.primaryLight} />
+                    <Ionicons name="open-outline" size={12} color={colors.purple} />
                   </TouchableOpacity>
                 ) : null}
               </View>
@@ -353,7 +405,11 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
                       <View style={styles.ticketTitleRow}>
                         <Text style={styles.ticketName}>{ticket.name}</Text>
                         {isSelected && (
-                          <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} />
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={18}
+                            color={colors.purple}
+                          />
                         )}
                       </View>
                       {ticket.description ? (
@@ -373,21 +429,29 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
           {instructions ? (
             <View style={styles.sectionBlock}>
               <View style={styles.sectionTitleRow}>
-                <Ionicons name="information-circle-outline" size={20} color={COLORS.primary} />
+                <Ionicons
+                  name="information-circle-outline"
+                  size={20}
+                  color={colors.purple}
+                />
                 <Text style={styles.sectionTitle}>Instructions & Amenities</Text>
               </View>
               <Text style={styles.descriptionText}>{instructions}</Text>
             </View>
           ) : null}
 
-          {/* Terms & Conditions Card */}
+          {/* Terms & Conditions Trigger Card */}
           <TouchableOpacity
             style={styles.termsActionCard}
             onPress={() => setShowTerms(true)}
             activeOpacity={0.85}
           >
             <View style={styles.termsActionLeft}>
-              <Ionicons name="shield-checkmark-outline" size={22} color={COLORS.primaryLight} />
+              <Ionicons
+                name="shield-checkmark-outline"
+                size={22}
+                color={colors.purple}
+              />
               <View style={{ flex: 1 }}>
                 <Text style={styles.termsTitle}>Terms & Conditions</Text>
                 <Text style={styles.termsSub}>
@@ -395,7 +459,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
                 </Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted || colors.grey} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -433,35 +497,70 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Terms Modal */}
-      <Modal visible={showTerms} transparent animationType="slide">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalHeading}>Event Terms & Rules</Text>
-              <TouchableOpacity onPress={() => setShowTerms(false)}>
-                <Ionicons name="close-circle" size={26} color={COLORS.muted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalBodyText}>
-                1. Entry is strictly permitted only upon presenting a valid digital ticket QR.{'\n\n'}
-                2. Age requirements and photo identification must be verified at entry.{'\n\n'}
-                3. Tickets once purchased are non-refundable and non-transferable.{'\n\n'}
-                4. The management reserves the right to deny entry for disruptive conduct.
-              </Text>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-    </View>
+      {/* Terms & Conditions Modal */}
+      <TermsModal
+        isOpen={showTerms}
+        onClose={() => setShowTerms(false)}
+      />
+    </SafeAreaView>
   );
 }
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  content: {
+    backgroundColor: colors.surface || '#161124',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 20,
+    width: '100%',
+    maxHeight: '80%',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.white,
+  },
+  list: {
+    marginBottom: 16,
+  },
+  termRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  bullet: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.purple,
+    marginRight: 8,
+    lineHeight: 18,
+  },
+  termText: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.textMuted,
+    lineHeight: 19,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   center: {
     justifyContent: 'center',
@@ -470,11 +569,11 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 14,
   },
   errorText: {
-    color: COLORS.red,
+    color: colors.red,
     fontSize: 15,
     textAlign: 'center',
     marginBottom: 16,
@@ -483,7 +582,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -540,19 +639,11 @@ const styles = StyleSheet.create({
     height: 380,
     width: '100%',
     position: 'relative',
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
   },
   heroImage: {
     width: '100%',
     height: '100%',
-  },
-  heroOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(11, 11, 16, 0.45)',
   },
   heroChipsRow: {
     position: 'absolute',
@@ -565,7 +656,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryPill: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.purple,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 6,
@@ -597,7 +688,7 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   eventTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 26,
     fontWeight: '800',
     lineHeight: 32,
@@ -607,38 +698,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginBottom: 16,
   },
   avatar: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   smallCaption: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.8,
   },
   organizerName: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '700',
     marginTop: 2,
   },
   metaCardContainer: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     padding: 14,
     marginBottom: 20,
   },
@@ -655,13 +746,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metaPrimaryText: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '700',
     marginTop: 2,
   },
   metaSecondaryText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 12,
     marginTop: 2,
   },
@@ -672,13 +763,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   mapsText: {
-    color: COLORS.primaryLight,
+    color: colors.purple,
     fontSize: 11,
     fontWeight: '700',
   },
   innerDivider: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginVertical: 12,
     marginLeft: 50,
   },
@@ -692,13 +783,13 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   sectionTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 17,
     fontWeight: '700',
     marginBottom: 4,
   },
   sectionSub: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 12,
     marginBottom: 10,
   },
@@ -711,15 +802,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginBottom: 10,
   },
   ticketCardSelected: {
-    borderColor: COLORS.primary,
+    borderColor: colors.purple,
     backgroundColor: 'rgba(139, 92, 246, 0.12)',
   },
   ticketTitleRow: {
@@ -728,28 +819,28 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   ticketName: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '700',
   },
   ticketDesc: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 12,
     marginTop: 3,
   },
   ticketPrice: {
-    color: COLORS.green,
+    color: colors.green,
     fontSize: 16,
     fontWeight: '800',
   },
   termsActionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginBottom: 10,
   },
   termsActionLeft: {
@@ -759,12 +850,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   termsTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '700',
   },
   termsSub: {
-    color: COLORS.muted,
+    color: colors.textMuted || colors.grey,
     fontSize: 11,
     marginTop: 2,
   },
@@ -773,9 +864,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#111017',
+    backgroundColor: colors.background || '#111017',
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: colors.border,
     paddingHorizontal: 18,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 28 : 16,
@@ -788,18 +879,18 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   bottomPriceLabel: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   bottomPriceValue: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 20,
     fontWeight: '800',
   },
   limitedSeatsText: {
-    color: COLORS.yellow,
+    color: '#FBBF24',
     fontSize: 10,
     fontWeight: '600',
     marginTop: 1,
@@ -807,7 +898,7 @@ const styles = StyleSheet.create({
   bookBtn: {
     flex: 1,
     minHeight: 48,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.purple,
     borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
@@ -821,33 +912,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '800',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: COLORS.surface,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '60%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalHeading: {
-    color: COLORS.text,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  modalBodyText: {
-    color: '#D4D4D8',
-    fontSize: 13,
-    lineHeight: 22,
   },
 });

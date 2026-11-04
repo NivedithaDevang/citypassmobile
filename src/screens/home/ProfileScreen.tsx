@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
   StyleSheet,
@@ -16,28 +16,51 @@ import {
 } from 'react-native';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { api } from '../services/api';
-import { type User, type Bookings } from '../types/auth';
+import { api } from '../../services/api';
+import { type User, type Bookings } from '../../types/auth';
+import { useUser } from '../../context/UserContext';
+import { AuthContext } from '../../context/AuthContext';
+import {COLORS} from '../../constants/Color';
 
-const COLORS = {
-  background: '#0F0214',
-  surface: '#1E0528',
-  surfaceLight: '#2E0B3B',
-  primary: '#8B5CF6',
-  primaryLight: '#D8B4E2',
-  accent: '#A855F7',
-  text: '#FFFFFF',
-  muted: '#93829B',
-  border: 'rgba(255, 255, 255, 0.1)',
-  green: '#34D399',
-  red: '#F87171',
+const formatDobForInput = (value: unknown): string => {
+  if (!value) return '';
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  if (typeof value === 'string') {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+
+    const dmyMatch = value.match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
+    if (dmyMatch) {
+      return `${dmyMatch[3]}-${dmyMatch[2]}-${dmyMatch[1]}`;
+    }
+
+    const parsedDate = new Date(value);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      const year = parsedDate.getFullYear();
+      const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(parsedDate.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  return '';
 };
 
+const colors = COLORS;
+
 export default function ProfileScreen({ navigation }: any) {
-  const [user, setUser] = useState<User | null>(null);
+  const { user, setUser, clearUser } = useUser();
+  const { logout } = useContext(AuthContext);
   const [bookings, setBookings] = useState<Bookings[]>([]);
   const [activeTab, setActiveTab] = useState<'profile' | 'bookings'>('profile');
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(!user);
   const [refreshing, setRefreshing] = useState<boolean>(false);
 
   // Edit Profile Modal States
@@ -47,44 +70,81 @@ export default function ProfileScreen({ navigation }: any) {
   const [editGender, setEditGender] = useState<'MALE' | 'FEMALE' | 'OTHER' | null>(null);
   const [isUpdating, setIsUpdating] = useState<boolean>(false);
 
-  // Fetch User & Bookings
-  const loadProfileData = useCallback(async () => {
-    try {
-      const [userRes, bookingsRes] = await Promise.allSettled([
-        api.get('/v1/auth/me'),
-        api.get('/v1/bookings/my-bookings'),
-      ]);
+  // Fetch logged in profile details
+  const fetchProfile = useCallback(async () => {
+      try {
+        const response = await api.get('/v1/users/userdetails', {
+          withCredentials: true,
+          headers: { 'x-client-type': 'mobile' }
+        });
 
-      if (userRes.status === 'fulfilled') {
-        const userData = userRes.value.data?.user || userRes.value.data?.data || userRes.value.data;
-        setUser(userData);
-        setEditName(userData?.name || '');
-        setEditPhone(userData?.phone || '');
-        setEditGender(userData?.gender || null);
-      }
 
-      if (bookingsRes.status === 'fulfilled') {
-        const rawBookings = bookingsRes.value.data;
-        const list: Bookings[] = Array.isArray(rawBookings)
-          ? rawBookings
-          : rawBookings?.bookings || rawBookings?.data || [];
-        setBookings(list);
+      const userData = response.data?.user || response.data?.data || response.data;
+
+      if (userData) {
+        const rawDob =
+          userData.dob ||
+          userData.date_of_birth ||
+          userData.birthDate ||
+          userData.birth_date ||
+          (user as any)?.dob ||
+          '';
+
+        const updatedProfile = {
+          id: String(userData.id || user?.id || ''),
+          name: userData.name || user?.name || '',
+          email: userData.email || user?.email || '',
+          role: userData.role || user?.role,
+          phone: userData.phone ?? (user as any)?.phone ?? '',
+          dob: formatDobForInput(rawDob),
+          city_id: userData.city_id ?? (user as any)?.city_id ?? '',
+          gender: userData.gender ?? (user as any)?.gender ?? '',
+          profile_image: userData.profile_image || (user as any)?.profile_image || null,
+          status: userData.status || user?.status || 'ACTIVE',
+        };
+
+        setUser(updatedProfile as any);
       }
-    } catch (err) {
-      console.error('Failed to load profile details:', err);
+    } catch (error) {
+      console.error('Failed to load profile details:', error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
+    }
+  }, [setUser, user]);
+
+  // Fetch bookings for the logged-in user
+  const fetchBookings = useCallback(async () => {
+    try {
+      const res = await api.get('/v1/bookings/my-bookings');
+      const list = Array.isArray(res.data)
+        ? res.data
+        : res.data?.bookings || res.data?.data || [];
+      setBookings(list);
+    } catch (err) {
+      console.log('Bookings fetch skipped or empty:', err);
     }
   }, []);
 
   useEffect(() => {
-    loadProfileData();
-  }, [loadProfileData]);
+    Promise.all([fetchProfile(), fetchBookings()]);
+  }, []);
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    loadProfileData();
+    await Promise.all([fetchProfile(), fetchBookings()]);
+    setRefreshing(false);
+  };
+
+  const openEditModal = () => {
+    setEditName(user?.name || '');
+    setEditPhone((user as any)?.phone || '');
+    const currentGender = (user as any)?.gender;
+    setEditGender(
+      currentGender === 'MALE' || currentGender === 'FEMALE' || currentGender === 'OTHER'
+        ? currentGender
+        : null
+    );
+    setEditModalVisible(true);
   };
 
   const handleUpdateProfile = async () => {
@@ -122,11 +182,12 @@ export default function ProfileScreen({ navigation }: any) {
         onPress: async () => {
           try {
             await api.post('/v1/auth/logout');
-          } catch {}
-          navigation?.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
+          } catch (error) {
+            console.log('Server logout failed; clearing local session:', error);
+          } finally {
+            clearUser();
+            await logout();
+          }
         },
       },
     ]);
@@ -144,10 +205,8 @@ export default function ProfileScreen({ navigation }: any) {
           onPress: async () => {
             try {
               await api.delete('/v1/auth/account');
-              navigation?.reset({
-                index: 0,
-                routes: [{ name: 'Login' }],
-              });
+              clearUser();
+              await logout();
             } catch (err: any) {
               Alert.alert('Error', err?.response?.data?.message || 'Could not delete account.');
             }
@@ -166,6 +225,11 @@ export default function ProfileScreen({ navigation }: any) {
     );
   }
 
+  const profileImage = (user as any)?.profile_image;
+  const phoneNumber = (user as any)?.phone;
+  const dobValue = (user as any)?.dob;
+  const genderValue = (user as any)?.gender;
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar style="light" />
@@ -175,10 +239,10 @@ export default function ProfileScreen({ navigation }: any) {
         <Text style={styles.headerTitle}>Account & Profile</Text>
         <TouchableOpacity
           style={styles.settingsIcon}
-          onPress={() => setEditModalVisible(true)}
+          onPress={openEditModal}
           activeOpacity={0.8}
         >
-          <Ionicons name="create-outline" size={20} color={COLORS.text} />
+          <Ionicons name="create-outline" size={20} color={colors.white} />
         </TouchableOpacity>
       </View>
 
@@ -186,14 +250,18 @@ export default function ProfileScreen({ navigation }: any) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primaryLight} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={COLORS.primaryLight}
+          />
         }
       >
         {/* 1. User Profile Header Card */}
         <View style={styles.profileHeaderCard}>
           <View style={styles.avatarContainer}>
-            {user?.profile_image ? (
-              <Image source={{ uri: user.profile_image }} style={styles.avatarImage} />
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.avatarImage} />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Ionicons name="person" size={40} color={COLORS.primaryLight} />
@@ -210,7 +278,7 @@ export default function ProfileScreen({ navigation }: any) {
 
           <TouchableOpacity
             style={styles.editBtn}
-            onPress={() => setEditModalVisible(true)}
+            onPress={openEditModal}
             activeOpacity={0.8}
           >
             <Ionicons name="pencil-sharp" size={14} color="#FFFFFF" />
@@ -218,7 +286,7 @@ export default function ProfileScreen({ navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        {/* 2. Navigation Tabs (Overview vs My Bookings) */}
+        {/* 2. Navigation Tabs */}
         <View style={styles.tabBar}>
           <TouchableOpacity
             style={[styles.tabButton, activeTab === 'profile' && styles.tabButtonActive]}
@@ -228,7 +296,7 @@ export default function ProfileScreen({ navigation }: any) {
             <Ionicons
               name="person-circle-outline"
               size={18}
-              color={activeTab === 'profile' ? '#FFFFFF' : COLORS.muted}
+              color={activeTab === 'profile' ? '#FFFFFF' : colors.grey}
             />
             <Text style={[styles.tabText, activeTab === 'profile' && styles.tabTextActive]}>
               Overview
@@ -243,7 +311,7 @@ export default function ProfileScreen({ navigation }: any) {
             <Ionicons
               name="ticket-outline"
               size={18}
-              color={activeTab === 'bookings' ? '#FFFFFF' : COLORS.muted}
+              color={activeTab === 'bookings' ? '#FFFFFF' : colors.grey}
             />
             <Text style={[styles.tabText, activeTab === 'bookings' && styles.tabTextActive]}>
               My Bookings ({bookings.length})
@@ -254,7 +322,6 @@ export default function ProfileScreen({ navigation }: any) {
         {/* 3. Conditional Content */}
         {activeTab === 'profile' ? (
           <>
-            {/* User Details Details Section */}
             <Text style={styles.sectionHeading}>Personal Details</Text>
             <View style={styles.infoCard}>
               <View style={styles.infoRow}>
@@ -271,7 +338,7 @@ export default function ProfileScreen({ navigation }: any) {
                 <Ionicons name="call-outline" size={18} color={COLORS.primaryLight} />
                 <View style={styles.infoMeta}>
                   <Text style={styles.infoLabel}>Phone Number</Text>
-                  <Text style={styles.infoValue}>{user?.phone || 'Not added'}</Text>
+                  <Text style={styles.infoValue}>{phoneNumber || 'Not added'}</Text>
                 </View>
               </View>
 
@@ -281,7 +348,7 @@ export default function ProfileScreen({ navigation }: any) {
                 <Ionicons name="calendar-clear-outline" size={18} color={COLORS.primaryLight} />
                 <View style={styles.infoMeta}>
                   <Text style={styles.infoLabel}>Date of Birth</Text>
-                  <Text style={styles.infoValue}>{user?.dob || 'Not provided'}</Text>
+                  <Text style={styles.infoValue}>{dobValue || 'Not provided'}</Text>
                 </View>
               </View>
 
@@ -291,7 +358,7 @@ export default function ProfileScreen({ navigation }: any) {
                 <Ionicons name="male-female-outline" size={18} color={COLORS.primaryLight} />
                 <View style={styles.infoMeta}>
                   <Text style={styles.infoLabel}>Gender</Text>
-                  <Text style={styles.infoValue}>{user?.gender || 'Not specified'}</Text>
+                  <Text style={styles.infoValue}>{genderValue || 'Not specified'}</Text>
                 </View>
               </View>
             </View>
@@ -305,10 +372,10 @@ export default function ProfileScreen({ navigation }: any) {
                 activeOpacity={0.8}
               >
                 <View style={styles.menuLeft}>
-                  <Ionicons name="receipt-outline" size={20} color={COLORS.primaryLight} />
+                  <Ionicons name="receipt-outline" size={20} color={colors.primaryLight} />
                   <Text style={styles.menuTitle}>Booking Receipts</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+                <Ionicons name="chevron-forward" size={18} color={colors.grey} />
               </TouchableOpacity>
 
               <View style={styles.divider} />
@@ -318,27 +385,26 @@ export default function ProfileScreen({ navigation }: any) {
                   <Ionicons name="heart-outline" size={20} color="#F472B6" />
                   <Text style={styles.menuTitle}>Saved Events & Wishlist</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+                <Ionicons name="chevron-forward" size={18} color={colors.grey} />
               </TouchableOpacity>
 
               <View style={styles.divider} />
 
               <TouchableOpacity style={styles.menuRow} onPress={handleLogout} activeOpacity={0.8}>
                 <View style={styles.menuLeft}>
-                  <Ionicons name="log-out-outline" size={20} color={COLORS.primaryLight} />
+                  <Ionicons name="log-out-outline" size={20} color={colors.primaryLight} />
                   <Text style={styles.menuTitle}>Sign Out</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={COLORS.muted} />
+                <Ionicons name="chevron-forward" size={18} color={colors.grey} />
               </TouchableOpacity>
             </View>
 
-            {/* Danger Zone */}
             <TouchableOpacity
               style={styles.deleteCard}
               onPress={handleDeleteAccount}
               activeOpacity={0.85}
             >
-              <Ionicons name="trash-outline" size={20} color={COLORS.red} />
+              <Ionicons name="trash-outline" size={20} color={colors.red} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.deleteTitle}>Delete CityPass Account</Text>
                 <Text style={styles.deleteSubtitle}>Permanently remove profile & active passes</Text>
@@ -350,7 +416,7 @@ export default function ProfileScreen({ navigation }: any) {
           <View style={styles.bookingsContainer}>
             {bookings.length === 0 ? (
               <View style={styles.emptyBookingsBox}>
-                <Ionicons name="ticket-outline" size={48} color={COLORS.muted} />
+                <Ionicons name="ticket-outline" size={48} color={colors.grey} />
                 <Text style={styles.emptyBookingsTitle}>No Passes Booked Yet</Text>
                 <Text style={styles.emptyBookingsSub}>
                   Browse upcoming concerts, exhibitions, and events on CityPass.
@@ -364,17 +430,17 @@ export default function ProfileScreen({ navigation }: any) {
                 </TouchableOpacity>
               </View>
             ) : (
-              bookings.map((booking) => {
+              bookings.map((booking: any) => {
                 const isConfirmed = booking.status === 'CONFIRMED';
                 return (
                   <View key={booking.id} style={styles.bookingCard}>
                     <View style={styles.bookingHeader}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.bookingEventTitle} numberOfLines={1}>
-                          {booking.event_title || booking.name || 'CityPass Event'}
+                          {booking.event_title || booking.event?.title || booking.name || 'CityPass Event'}
                         </Text>
                         <Text style={styles.bookingDate}>
-                          Booked on: {booking.booking_date}
+                          Booked on: {booking.booking_date || booking.created_at || 'Recent'}
                         </Text>
                       </View>
                       <View
@@ -396,23 +462,23 @@ export default function ProfileScreen({ navigation }: any) {
 
                     <View style={styles.bookingBody}>
                       <View style={styles.bookingMetaRow}>
-                        <Ionicons name="location-outline" size={15} color={COLORS.primaryLight} />
+                        <Ionicons name="location-outline" size={15} color={colors.primaryLight} />
                         <Text style={styles.bookingMetaText} numberOfLines={1}>
-                          {booking.location || booking.venue || 'Venue specified on ticket'}
+                          {booking.location || booking.venue || booking.event?.location || 'Venue specified on ticket'}
                         </Text>
                       </View>
 
                       <View style={styles.bookingFooterRow}>
                         <View style={styles.ticketsCountBox}>
-                          <Ionicons name="people-outline" size={15} color={COLORS.muted} />
+                          <Ionicons name="people-outline" size={15} color={colors.grey} />
                           <Text style={styles.ticketsCountText}>
-                            {booking.number_of_tickets || 1} Pass
-                            {(booking.number_of_tickets || 1) > 1 ? 'es' : ''}
+                            {booking.number_of_tickets || booking.quantity || 1} Pass
+                            {(booking.number_of_tickets || booking.quantity || 1) > 1 ? 'es' : ''}
                           </Text>
                         </View>
 
                         <Text style={styles.bookingPrice}>
-                          ₹{Number(booking.total_amount || 0).toLocaleString('en-IN')}
+                          ₹{Number(booking.total_amount || booking.price || 0).toLocaleString('en-IN')}
                         </Text>
                       </View>
                     </View>
@@ -431,7 +497,7 @@ export default function ProfileScreen({ navigation }: any) {
             <View style={styles.modalHeader}>
               <Text style={styles.modalHeading}>Edit Profile</Text>
               <TouchableOpacity onPress={() => setEditModalVisible(false)}>
-                <Ionicons name="close" size={24} color={COLORS.muted} />
+                <Ionicons name="close" size={24} color={colors.grey} />
               </TouchableOpacity>
             </View>
 
@@ -442,7 +508,7 @@ export default function ProfileScreen({ navigation }: any) {
                 value={editName}
                 onChangeText={setEditName}
                 placeholder="Enter your full name"
-                placeholderTextColor={COLORS.muted}
+                placeholderTextColor={colors.grey}
               />
 
               <Text style={styles.inputLabel}>Phone Number</Text>
@@ -451,7 +517,7 @@ export default function ProfileScreen({ navigation }: any) {
                 value={editPhone}
                 onChangeText={setEditPhone}
                 placeholder="e.g. +91 9876543210"
-                placeholderTextColor={COLORS.muted}
+                placeholderTextColor={colors.grey}
                 keyboardType="phone-pad"
               />
 
@@ -515,7 +581,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginTop: 12,
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 14,
   },
   topHeader: {
@@ -525,10 +591,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   headerTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 18,
     fontWeight: '700',
   },
@@ -536,7 +602,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -545,12 +611,12 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
   },
   profileHeaderCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginBottom: 20,
   },
   avatarContainer: {
@@ -561,17 +627,17 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
   },
   avatarPlaceholder: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: COLORS.accent,
+    borderColor: colors.accent,
   },
   statusBadge: {
     position: 'absolute',
@@ -584,28 +650,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     alignSelf: 'center',
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: COLORS.green,
+    backgroundColor: colors.green,
   },
   statusText: {
-    color: COLORS.green,
+    color: colors.green,
     fontSize: 9,
     fontWeight: '800',
   },
   profileName: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 20,
     fontWeight: '800',
     marginBottom: 4,
   },
   profileEmail: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 13,
     marginBottom: 14,
   },
@@ -613,7 +679,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.purple,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -625,12 +691,12 @@ const styles = StyleSheet.create({
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: 4,
     borderRadius: 14,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   tabButton: {
     flex: 1,
@@ -642,10 +708,10 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   tabButtonActive: {
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
   },
   tabText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -654,17 +720,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   sectionHeading: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 10,
     marginTop: 4,
   },
   infoCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     padding: 16,
     marginBottom: 20,
   },
@@ -678,26 +744,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 11,
     fontWeight: '600',
   },
   infoValue: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
     marginTop: 2,
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginVertical: 10,
   },
   menuCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     padding: 16,
     marginBottom: 16,
   },
@@ -713,7 +779,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   menuTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
   },
@@ -728,12 +794,12 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   deleteTitle: {
-    color: COLORS.red,
+    color: colors.red,
     fontSize: 14,
     fontWeight: '700',
   },
   deleteSubtitle: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 11,
     marginTop: 2,
   },
@@ -741,30 +807,30 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyBookingsBox: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     padding: 32,
     alignItems: 'center',
     marginTop: 10,
   },
   emptyBookingsTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 16,
     fontWeight: '700',
     marginTop: 12,
     marginBottom: 6,
   },
   emptyBookingsSub: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
     marginBottom: 18,
   },
   browseBtn: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.purple,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 12,
@@ -775,10 +841,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   bookingCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     padding: 16,
   },
   bookingHeader: {
@@ -786,18 +852,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
     paddingBottom: 10,
     marginBottom: 10,
   },
   bookingEventTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 3,
   },
   bookingDate: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 11,
   },
   bookingStatusBadge: {
@@ -817,10 +883,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   textConfirmed: {
-    color: COLORS.green,
+    color: colors.green,
   },
   textCancelled: {
-    color: COLORS.red,
+    color: colors.red,
   },
   bookingBody: {
     gap: 8,
@@ -831,7 +897,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   bookingMetaText: {
-    color: COLORS.primaryLight,
+    color: colors.primaryLight,
     fontSize: 12,
   },
   bookingFooterRow: {
@@ -846,12 +912,12 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   ticketsCountText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 12,
     fontWeight: '600',
   },
   bookingPrice: {
-    color: COLORS.green,
+    color: colors.green,
     fontSize: 15,
     fontWeight: '800',
   },
@@ -861,13 +927,13 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 20,
     maxHeight: '80%',
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -876,25 +942,25 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalHeading: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 18,
     fontWeight: '800',
   },
   inputLabel: {
-    color: COLORS.primaryLight,
+    color: colors.primaryLight,
     fontSize: 12,
     fontWeight: '700',
     marginBottom: 6,
     marginTop: 10,
   },
   textInput: {
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
   },
   genderRow: {
@@ -905,18 +971,18 @@ const styles = StyleSheet.create({
   genderChip: {
     flex: 1,
     paddingVertical: 10,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 10,
     alignItems: 'center',
   },
   genderChipActive: {
-    backgroundColor: COLORS.primary,
-    borderColor: COLORS.primary,
+    backgroundColor: colors.purple,
+    borderColor: colors.purple,
   },
   genderChipText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 12,
     fontWeight: '700',
   },
@@ -931,19 +997,19 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',
   },
   cancelBtnText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 14,
     fontWeight: '700',
   },
   saveBtn: {
     flex: 1,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.purple,
     paddingVertical: 12,
     borderRadius: 12,
     alignItems: 'center',

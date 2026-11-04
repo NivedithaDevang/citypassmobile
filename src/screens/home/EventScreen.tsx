@@ -11,8 +11,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { api } from '../services/api';
-import { type Events } from '../types/auth';
+import { api } from '../../services/api';
+import { type Events } from '../../types/auth';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 type EventCardData = Events & {
@@ -162,7 +162,7 @@ export default function EventScreen({ navigation }: any) {
             source={
               item.image
                 ? { uri: item.image }
-                : require('../../assets/logo.png')
+                : require('../../../assets/logo.png')
             }
             style={styles.cardImage}
             resizeMode="cover"
