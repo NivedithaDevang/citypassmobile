@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
+import { COLORS } from '../constants/Color';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { api } from '../services/api';
 import { type EventWithTickets, type EventTicket } from './EventDetailsScreen';
@@ -31,18 +32,7 @@ type Props = {
   navigation: any;
 };
 
-const COLORS = {
-  background: '#0B0B10',
-  surface: '#15151D',
-  surfaceLight: '#1E1B29',
-  primary: '#8B5CF6',
-  primaryLight: '#C4B5FD',
-  text: '#FFFFFF',
-  muted: '#A1A1AA',
-  border: '#292633',
-  green: '#4ADE80',
-  red: '#F87171',
-};
+const colors = COLORS; 
 
 export default function BookingScreen({ route, navigation }: Props) {
   const event = route.params?.event;
@@ -208,7 +198,7 @@ export default function BookingScreen({ route, navigation }: Props) {
             onPress={() => navigation.goBack()}
             activeOpacity={0.8}
           >
-            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+            <Ionicons name="arrow-back" size={22} color={colors.white} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Book Pass</Text>
           <View style={{ width: 40 }} />
@@ -265,7 +255,7 @@ export default function BookingScreen({ route, navigation }: Props) {
             <Ionicons
               name={isDropdownOpen ? 'chevron-up' : 'chevron-down'}
               size={18}
-              color={COLORS.muted}
+              color={colors.grey}
             />
           </TouchableOpacity>
 
@@ -297,7 +287,7 @@ export default function BookingScreen({ route, navigation }: Props) {
                       <Ionicons
                         name="checkmark"
                         size={18}
-                        color={COLORS.primary}
+                        color={colors.purple}
                         style={{ marginLeft: 8 }}
                       />
                     )}
@@ -329,7 +319,7 @@ export default function BookingScreen({ route, navigation }: Props) {
               disabled={quantity <= 1 || capacityLeft <= 0}
               activeOpacity={0.7}
             >
-              <Ionicons name="remove" size={18} color={COLORS.text} />
+              <Ionicons name="remove" size={18} color={colors.white} />
             </TouchableOpacity>
 
             <Text style={styles.quantityText}>{quantity}</Text>
@@ -343,7 +333,7 @@ export default function BookingScreen({ route, navigation }: Props) {
               disabled={quantity >= maxAllowedTickets || capacityLeft <= 0}
               activeOpacity={0.7}
             >
-              <Ionicons name="add" size={18} color={COLORS.text} />
+              <Ionicons name="add" size={18} color={colors.white} />
             </TouchableOpacity>
           </View>
         </View>
@@ -402,7 +392,7 @@ export default function BookingScreen({ route, navigation }: Props) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <View style={styles.modalIconBox}>
-              <Ionicons name="help-circle-outline" size={36} color={COLORS.primary} />
+              <Ionicons name="help-circle-outline" size={36} color={colors.purple} />
             </View>
 
             <Text style={styles.modalTitle}>Confirm Your Booking</Text>
@@ -416,7 +406,7 @@ export default function BookingScreen({ route, navigation }: Props) {
 
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>Category:</Text>
-                <Text style={[styles.detailValue, { color: COLORS.primaryLight }]}>
+                <Text style={[styles.detailValue, { color: colors.primaryLight }]}>
                   {activeTicket?.name}
                 </Text>
               </View>
@@ -465,10 +455,10 @@ export default function BookingScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: colors.background,
   },
   headerSafeArea: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
   },
   header: {
     paddingTop: Platform.OS === 'android' ? 36 : 8,
@@ -478,18 +468,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   headerTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 17,
     fontWeight: '700',
   },
@@ -498,22 +488,22 @@ const styles = StyleSheet.create({
     paddingBottom: 110,
   },
   eventCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginBottom: 20,
   },
   eventBadge: {
-    color: COLORS.primaryLight,
+    color: colors.primaryLight,
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 1,
     marginBottom: 6,
   },
   eventName: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 19,
     fontWeight: '800',
     marginBottom: 10,
@@ -525,12 +515,12 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   metaText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 13,
     flex: 1,
   },
   sectionHeading: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 10,
@@ -539,9 +529,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   dropdownTrigger: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -550,7 +540,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dropdownTriggerActive: {
-    borderColor: COLORS.primary,
+    borderColor: colors.purple,
   },
   selectedTierRow: {
     flexDirection: 'row',
@@ -558,23 +548,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   selectedTierName: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 15,
     fontWeight: '700',
   },
   selectedTierPrice: {
-    color: COLORS.primaryLight,
+    color: colors.primaryLight,
     fontSize: 15,
     fontWeight: '700',
   },
   placeholderText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 14,
   },
   dropdownMenu: {
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     borderRadius: 14,
     marginTop: 8,
     overflow: 'hidden',
@@ -585,28 +575,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 14,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: colors.border,
   },
   dropdownItemSelected: {
     backgroundColor: 'rgba(139, 92, 246, 0.15)',
   },
   dropdownItemName: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '600',
   },
   dropdownItemDesc: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 11,
     marginTop: 2,
   },
   dropdownItemPrice: {
-    color: COLORS.green,
+    color: colors.green,
     fontSize: 14,
     fontWeight: '700',
   },
   tierDescriptionText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 12,
     marginTop: 8,
     paddingHorizontal: 4,
@@ -615,20 +605,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: 16,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     marginBottom: 20,
   },
   quantityTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '700',
   },
   quantitySub: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 12,
     marginTop: 2,
   },
@@ -641,9 +631,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -651,18 +641,18 @@ const styles = StyleSheet.create({
     opacity: 0.35,
   },
   quantityText: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 16,
     fontWeight: '800',
     minWidth: 20,
     textAlign: 'center',
   },
   summaryCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     padding: 16,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
     gap: 10,
   },
   summaryRow: {
@@ -671,31 +661,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   summaryLabel: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 13,
   },
   summaryVal: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 13,
     fontWeight: '600',
   },
   freeTag: {
-    color: COLORS.green,
+    color: colors.green,
     fontSize: 12,
     fontWeight: '800',
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.border,
+    backgroundColor: colors.border,
     marginVertical: 4,
   },
   totalLabel: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 15,
     fontWeight: '800',
   },
   totalVal: {
-    color: COLORS.green,
+    color: colors.green,
     fontSize: 18,
     fontWeight: '900',
   },
@@ -706,7 +696,7 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#111017',
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: colors.border,
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 30 : 16,
@@ -715,18 +705,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   bottomLabel: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 9,
     fontWeight: '800',
     letterSpacing: 0.8,
   },
   bottomPrice: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 22,
     fontWeight: '900',
   },
   payBtn: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.purple,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -749,31 +739,31 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalCard: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: colors.border,
   },
   modalIconBox: {
     alignItems: 'center',
     marginBottom: 8,
   },
   modalTitle: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 18,
     fontWeight: '800',
     textAlign: 'center',
   },
   modalSubtitle: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 12,
     textAlign: 'center',
     marginTop: 4,
     marginBottom: 16,
   },
   modalDetailsList: {
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     padding: 14,
     borderRadius: 12,
     gap: 8,
@@ -785,26 +775,26 @@ const styles = StyleSheet.create({
   },
   detailRowTotal: {
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: colors.border,
     paddingTop: 8,
     marginTop: 4,
   },
   detailLabel: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 13,
   },
   detailValue: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 13,
     fontWeight: '700',
   },
   detailLabelBold: {
-    color: COLORS.text,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '800',
   },
   detailValBold: {
-    color: COLORS.green,
+    color: colors.green,
     fontSize: 16,
     fontWeight: '900',
   },
@@ -814,19 +804,19 @@ const styles = StyleSheet.create({
   },
   modalCancelBtn: {
     flex: 1,
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: colors.surfaceLight,
     paddingVertical: 13,
     borderRadius: 12,
     alignItems: 'center',
   },
   modalCancelText: {
-    color: COLORS.muted,
+    color: colors.grey,
     fontSize: 14,
     fontWeight: '700',
   },
   modalConfirmBtn: {
     flex: 1,
-    backgroundColor: COLORS.primary,
+    backgroundColor: colors.purple,
     paddingVertical: 13,
     borderRadius: 12,
     alignItems: 'center',
