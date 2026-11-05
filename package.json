@@ -18,6 +18,7 @@
     "@react-navigation/native-stack": "^7.21.0",
     "axios": "^1.21.0",
     "expo": "^58.0.20",
+    "expo-linear-gradient": "~58.0.3",
     "expo-router": "~58.0.27",
     "expo-secure-store": "~58.0.2",
     "expo-status-bar": "~58.0.4",
@@ -33,6 +34,5 @@
     "eslint-config-expo": "~58.0.4",
     "typescript": "~6.0.3"
   },
-  
   "private": true
 }
