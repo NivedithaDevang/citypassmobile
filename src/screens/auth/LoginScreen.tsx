@@ -17,9 +17,38 @@ import Ionicons from '@react-native-vector-icons/ionicons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { api } from '../../services/api';
 import { AuthContext } from '../../context/AuthContext';
-import {COLORS} from '../../constants/Color';
+import { COLORS } from '../../constants/Color';
 
 const colors = COLORS;
+
+function getTokenExpiresAt(data: unknown): number | undefined {
+  if (!data || typeof data !== 'object') return undefined;
+
+  const fields = data as Record<string, unknown>;
+  const expiresAt = fields.expiresAt ?? fields.expires_at;
+
+  if (typeof expiresAt === 'number' && Number.isFinite(expiresAt)) {
+    return expiresAt < 1_000_000_000_000 ? expiresAt * 1000 : expiresAt;
+  }
+  if (typeof expiresAt === 'string') {
+    const numericExpiry = Number(expiresAt);
+    if (expiresAt.trim() && Number.isFinite(numericExpiry)) {
+      return numericExpiry < 1_000_000_000_000
+        ? numericExpiry * 1000
+        : numericExpiry;
+    }
+
+    const parsedExpiry = Date.parse(expiresAt);
+    if (Number.isFinite(parsedExpiry)) return parsedExpiry;
+  }
+
+  const expiresIn = fields.expiresIn ?? fields.expires_in;
+  const expiresInSeconds =
+    typeof expiresIn === 'number' ? expiresIn : Number(expiresIn);
+  return Number.isFinite(expiresInSeconds) && expiresInSeconds >= 0
+    ? Date.now() + expiresInSeconds * 1000
+    : undefined;
+}
 
 export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
@@ -27,70 +56,71 @@ export default function LoginScreen({ navigation }: any) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  
-const { login } = useContext(AuthContext);
+  const { login } = useContext(AuthContext);
 
-const handleLogin = async () => {
-  if (!email.trim() || !password.trim()) {
-    Alert.alert(
-      'Missing Fields',
-      'Please enter both email and password.'
-    );
-    return;
-  }
+  const handleLogin = async () => {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
 
-  try {
-    setLoading(true);
+    if (!trimmedEmail || !trimmedPassword) {
+      Alert.alert('Missing Fields', 'Please enter both email and password.');
+      return;
+    }
 
-    const payload = {
-      email: email.trim().toLowerCase(),
-      password: password.trim(),
-    };
+    try {
+      setLoading(true);
 
-    const response = await api.post(
-      '/v1/auth/login',
-      payload,
-      {
+      const payload = {
+        email: trimmedEmail.toLowerCase(),
+        password: trimmedPassword,
+      };
+
+      const response = await api.post('/v1/auth/login', payload, {
         headers: {
           'x-client-type': 'mobile',
         },
+      });
+      const token =
+        response.data?.token ||
+        response.data?.accessToken ||
+        response.data?.data?.token ||
+        response.data?.data?.accessToken;
+      const tokenData = response.data?.data ?? response.data;
+
+      if (!token || typeof token !== 'string') {
+        throw new Error('Authentication token was not returned by the server.');
       }
-    );
 
-    const token = response.data?.token
-    console.log(token)
-    if (typeof token !== 'string' || !token) {
-      throw new Error(
-        'Authentication token was not returned by the server.'
-      );
+      await login(token, getTokenExpiresAt(tokenData));
+
+    } catch (err: any) {
+
+      const errorMessage =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Something went wrong. Please check your connection and try again.';
+      console.log(err)
+      Alert.alert('Login Failed', errorMessage);
+    } finally {
+      setLoading(false);
     }
-    await login(token);
-
-
-  } catch (err: any) {
-
-    Alert.alert(
-      'Login Failed',
-      err?.message ||
-      'Something went wrong. Please try again.'
-    );
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         style={styles.keyboardContainer}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
         >
           {/* Brand Header */}
           <View style={styles.header}>
@@ -100,7 +130,9 @@ const handleLogin = async () => {
               resizeMode="contain"
             />
             <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>Sign in to access your passes and events</Text>
+            <Text style={styles.subtitle}>
+              Sign in to access your passes and events
+            </Text>
           </View>
 
           {/* Login Form */}
@@ -132,13 +164,6 @@ const handleLogin = async () => {
             <View style={styles.inputGroup}>
               <View style={styles.passwordLabelRow}>
                 <Text style={styles.label}>Password</Text>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() =>
-                    Alert.alert('Reset Password', 'Password recovery link feature.')
-                  }
-                >
-                </TouchableOpacity>
               </View>
               <View style={styles.inputWrapper}>
                 <Ionicons
@@ -155,7 +180,9 @@ const handleLogin = async () => {
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                 />
-                <TouchableOpacity onPress={() => setShowPassword((prev) => !prev)}>
+                <TouchableOpacity
+                  onPress={() => setShowPassword((prev) => !prev)}
+                >
                   <Ionicons
                     name={showPassword ? 'eye-off-outline' : 'eye-outline'}
                     size={20}
@@ -167,7 +194,10 @@ const handleLogin = async () => {
 
             {/* Sign In Button */}
             <TouchableOpacity
-              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                loading && styles.submitButtonDisabled,
+              ]}
               onPress={handleLogin}
               disabled={loading}
               activeOpacity={0.85}
@@ -183,7 +213,9 @@ const handleLogin = async () => {
           {/* Switch to Sign Up */}
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>Don&apos;t have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('SignUpScreen')}>
+            <TouchableOpacity
+              onPress={() => navigation.replace('SignUpScreen')}
+            >
               <Text style={styles.signupLink}>Create Account</Text>
             </TouchableOpacity>
           </View>
@@ -202,20 +234,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 20,
-    paddingTop: 40,
+    paddingTop: 30,
     paddingBottom: 40,
     justifyContent: 'center',
-    flexGrow: 1,
   },
   header: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
   },
   logo: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 18,
     marginBottom: 16,
   },
   title: {
@@ -288,7 +320,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 28,
+    marginTop: 24,
   },
   footerText: {
     color: colors.grey,

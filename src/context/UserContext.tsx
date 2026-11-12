@@ -5,10 +5,11 @@ import {
   useCallback,
   useEffect,
   useRef,
-  type ReactNode,
-} from "react";
-import type { User } from "../types/auth";
-import { api } from "../services/api";
+  ReactNode,
+} from 'react';
+import type { User } from '../types/auth';
+import { api } from '../services/api';
+import { useAuth } from './AuthContext';
 
 interface UserContextType {
   user: User | null;
@@ -21,23 +22,20 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-interface UserProviderProps {
-  children: ReactNode;
-}
-
-export function UserProvider({ children }: UserProviderProps) {
+export function UserProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated, logout } = useAuth();
   const [user, setUserState] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const sessionRequestVersion = useRef(0);
   const [profileImage, setProfileImageState] = useState<string | null>(null);
+  const sessionRequestVersion = useRef(0);
 
   const getImageUrl = useCallback((image: string | null | undefined) => {
     if (!image) return null;
-    if (image.startsWith("http://") || image.startsWith("https://")) {
+    if (image.startsWith('http://') || image.startsWith('https://')) {
       return image;
     }
-    const apiBaseUrl = api.defaults.baseURL ?? "";
-    return `${apiBaseUrl.replace(/\/$/, "")}/${image.replace(/^\/+/, "")}`;
+    const apiBaseUrl = api.defaults.baseURL ?? '';
+    return `${apiBaseUrl.replace(/\/$/, '')}/${image.replace(/^\/+/, '')}`;
   }, []);
 
   const setUser = useCallback(
@@ -49,18 +47,34 @@ export function UserProvider({ children }: UserProviderProps) {
     [getImageUrl]
   );
 
+  const clearUser = useCallback(() => {
+    sessionRequestVersion.current += 1;
+    setUserState(null);
+    setProfileImageState(null);
+  }, []);
+
+  // Sync profile fetch with authentication state
   useEffect(() => {
+    if (!isAuthenticated) {
+      clearUser();
+      setLoading(false);
+      return;
+    }
+
     const checkSession = async () => {
       const requestVersion = sessionRequestVersion.current;
+      setLoading(true);
 
       try {
-        // Use api instance directly so headers, credentials, and baseURL are handled
-        const response = await api.get("/v1/auth/profile");
+        const response = await api.get('/v1/auth/profile');
         if (requestVersion !== sessionRequestVersion.current) return;
         setUser(response.data?.user || response.data);
-      } catch {
+      } catch (error: any) {
         if (requestVersion === sessionRequestVersion.current) {
-          setUser(null);
+          clearUser();
+          if (error.response?.status === 401) {
+            await logout();
+          }
         }
       } finally {
         setLoading(false);
@@ -68,13 +82,7 @@ export function UserProvider({ children }: UserProviderProps) {
     };
 
     checkSession();
-  }, [setUser]);
-
-  const clearUser = useCallback(() => {
-    sessionRequestVersion.current += 1;
-    setUserState(null);
-    setProfileImageState(null);
-  }, []);
+  }, [isAuthenticated, setUser, clearUser, logout]);
 
   const setProfileImage = useCallback(
     (image: string | null) => {
@@ -111,7 +119,7 @@ export function UserProvider({ children }: UserProviderProps) {
 export function useUser() {
   const context = useContext(UserContext);
   if (!context) {
-    throw new Error("useUser must be rendered inside UserProvider");
+    throw new Error('useUser must be used within a UserProvider');
   }
   return context;
 }

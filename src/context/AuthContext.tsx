@@ -1,22 +1,17 @@
-
 import React, {
   createContext,
+  useContext,
   useState,
   useEffect,
   ReactNode,
 } from 'react';
-
-import {
-  saveToken,
-  getToken,
-  removeToken,
-} from '../services/tokenStorage';
+import { tokenStorage } from '../services/tokenStorage';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   userToken: string | null;
   isLoading: boolean;
-  login: (token: string) => Promise<void>;
+  login: (token: string, expiresAt?: number) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -28,23 +23,16 @@ export const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
 });
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({
-  children,
-}) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userToken, setUserToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check saved token whenever the app starts
+  // Check stored token and validity on app startup
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        const token = await getToken('citypass_user_token');
-
+        const token = await tokenStorage.getToken();
         if (token) {
           setUserToken(token);
           setIsAuthenticated(true);
@@ -53,7 +41,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
           setIsAuthenticated(false);
         }
       } catch (error) {
-        console.error('Error checking authentication:', error);
+        console.error('Error verifying auth status:', error);
         setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
@@ -63,20 +51,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     checkAuthStatus();
   }, []);
 
-  // Login and save token
-  const login = async (token: string) => {
-    await saveToken('citypass_user_token', token);
-
+  const login = async (token: string, expiresAt?: number) => {
+    await tokenStorage.setToken(token, expiresAt);
     setUserToken(token);
-    const saved = await getToken('citypass_user_token');
-    console.log('Saved token: ', saved)
     setIsAuthenticated(true);
   };
 
-  // Logout and remove token
   const logout = async () => {
-    await removeToken('citypass_user_token');
-
+    await tokenStorage.removeToken();
     setUserToken(null);
     setIsAuthenticated(false);
   };
@@ -95,3 +77,5 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     </AuthContext.Provider>
   );
 };
+
+export const useAuth = () => useContext(AuthContext);

@@ -186,9 +186,10 @@ export default function SignUpScreen({ navigation }: any) {
       <StatusBar style="light" />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.keyboardContainer}
-      >
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+              style={styles.keyboardContainer}
+            >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -407,7 +408,7 @@ export default function SignUpScreen({ navigation }: any) {
           {/* Footer - Switch to Login */}
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('LoginScreen')}>
+            <TouchableOpacity onPress={() => navigation.replace('LoginScreen')}>
               <Text style={styles.loginLink}>LogIn</Text>
             </TouchableOpacity>
           </View>
