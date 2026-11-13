@@ -7,13 +7,13 @@ import { AuthContext } from '../../src/context/AuthContext';
 
 import SignupScreen from '../../src/screens/auth/SignupScreen';
 import LoginScreen from '../../src/screens/auth/LoginScreen';
-
+import WelcomeScreen from '../screens/WelcomeScreen';
 import HomeScreen from '../../src/screens/home/HomeScreen';
 import EventScreen from '../../src/screens/home/EventScreen';
 import ProfileScreen from '../../src/screens/home/ProfileScreen';
-
+import MyBookingsScreen from '../screens/profile/MyBookings';
 import EventDetailsScreen from '../../src/screens/EventDetailsScreen';
-import BookingScreen from '../../src/screens/BookingScreen';
+import BookingScreen from '../../src/screens/booking/BookingScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -37,20 +37,22 @@ export function AppNavigator() {
 
   return (
     <NavigationContainer>
+      
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          // Logged-in users
+          // Logged-in stack (Home is now first, so it loads on reload)
           <>
-            <Stack.Screen name="MainTabs" component={HomeScreen} />
             <Stack.Screen name="Home" component={HomeScreen} />
             <Stack.Screen name="EventScreen" component={EventScreen} />
             <Stack.Screen name="Profile" component={ProfileScreen} />
+            <Stack.Screen name="MyBookings" component={MyBookingsScreen} />
             <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
             <Stack.Screen name="Booking" component={BookingScreen} />
           </>
         ) : (
-          // Logged-out users
+          // Logged-out stack
           <>
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="LoginScreen" component={LoginScreen} />
             <Stack.Screen name="SignUpScreen" component={SignupScreen} />
           </>

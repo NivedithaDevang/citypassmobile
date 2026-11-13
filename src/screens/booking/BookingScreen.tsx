@@ -11,10 +11,10 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
-import { COLORS } from '../constants/Color';
+import { COLORS } from '../../constants/Color';
 import Ionicons from '@react-native-vector-icons/ionicons';
-import { api } from '../services/api';
-import { type EventWithTickets, type EventTicket } from './EventDetailsScreen';
+import { api } from '../../services/api';
+import { type EventWithTickets, type EventTicket } from '../EventDetailsScreen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 type Props = {
   route: {

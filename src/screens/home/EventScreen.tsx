@@ -472,9 +472,9 @@ export default function EventScreen({ navigation }: any) {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons
-              name={isFav ? 'heart' : 'heart-outline'}
+              name={isFav ? 'bookmark' : 'bookmark-outline'}
               size={15}
-              color={isFav ? '#F43F5E' : '#FFFFFF'}
+              color={isFav ? '#9232bf' : '#FFFFFF'}
             />
           </TouchableOpacity>
 
@@ -693,6 +693,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+    paddingBottom: 80
   },
   loaderContainer: {
     flex: 1,

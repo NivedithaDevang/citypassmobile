@@ -205,13 +205,17 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
   };
 
   const openMaps = () => {
-    if (!event?.location) return;
-    const query = encodeURIComponent(`${event.location} ${event.city_name || ''}`);
+    const rawLocation = event?.location?.trim();
+    if (!rawLocation) return;
+    const venueOnly = rawLocation.split(',')[0].trim();
+
+    const query = encodeURIComponent(venueOnly);
     const url = Platform.select({
       ios: `maps:0,0?q=${query}`,
       android: `geo:0,0?q=${query}`,
       default: `https://www.google.com/maps/search/?api=1&query=${query}`,
     });
+
     Linking.openURL(url as string).catch(() => {
       Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
     });
@@ -273,7 +277,7 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
 
   const instructions = event.additional_instructions || event.instructions;
   const organizerName =
-    event.organiser_stage_name || event.organiser_user_name || 'CityPass Organiser';
+    event.organiser_stage_name || 'CityPass Organiser';
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -298,7 +302,6 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
       </SafeAreaProvider>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {/* Event Backdrop / Poster */}
         <View style={styles.heroPoster}>
           <Image
             source={event.image ? { uri: event.image } : require('../../assets/logo.png')}
@@ -357,15 +360,15 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
 
             <View style={styles.innerDivider} />
 
+            {/* Venue displaying location only */}
             <View style={styles.metaRow}>
               <View style={styles.metaIcon}>
                 <Ionicons name="location-outline" size={20} color={colors.purple} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.smallCaption}>VENUE</Text>
-                <Text style={styles.metaPrimaryText}>{event.city_name || 'Location'}</Text>
-                <Text style={styles.metaSecondaryText}>
-                  {event.location || 'Venue details to be confirmed'}
+                <Text style={styles.metaPrimaryText}>
+                  {event.location || 'Location yet to be announced'}
                 </Text>
 
                 {event.location ? (
@@ -375,8 +378,18 @@ export default function EventDetailsScreen({ route, navigation }: Props) {
                   </TouchableOpacity>
                 ) : null}
               </View>
+              </View>
+            </View>
+            <View style={styles.organizerCard}>
+            <View style={styles.avatar}>
+              <Ionicons name="business-outline" size={20} color={colors.purple} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.smallCaption}>CITY</Text>
+              <Text style={styles.metaPrimaryText}>{event.city_name || 'City yet to be announced'}</Text>
             </View>
           </View>
+          
 
           {/* About Event */}
           <View style={styles.sectionBlock}>

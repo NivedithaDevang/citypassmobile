@@ -17,7 +17,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import {COLORS} from '../../constants/Color';
+import { COLORS } from '../../constants/Color';
 import EventScreen from '../home/EventScreen';
 import ProfileScreen from '../home/ProfileScreen';
 import { api } from '../../services/api';
@@ -37,6 +37,8 @@ type EventCardData = Events & {
   name?: string;
   city?: string | { id?: string | number; name?: string } | null;
   city_name?: string | null;
+  city_id?: string | number | null;
+  venue?: { name?: string; city?: string } | null;
   image?: string;
   image_url?: string;
   location?: string;
@@ -82,7 +84,7 @@ function HomeFeedScreen({ navigation }: any) {
           }
           return {
             id: item.id || item.code || index,
-            name: item.name || item.cityName || 'Unknown',
+            name: item.name || item.cityName || item.city_name || 'Unknown',
             code: item.code || String(item.id || ''),
           };
         });
@@ -120,9 +122,31 @@ function HomeFeedScreen({ navigation }: any) {
   };
 
   const getCityName = (event: EventCardData) => {
-    if (typeof event.city === 'string' && event.city) return event.city;
-    if (event.city && typeof event.city !== 'string' && event.city.name) return event.city.name;
-    return event.city_name || '';
+    if (typeof event.city === 'string' && event.city.trim()) return event.city.trim();
+    if (typeof event.city_name === 'string' && event.city_name.trim()) return event.city_name.trim();
+
+    if (event.city && typeof event.city === 'object' && 'name' in event.city && event.city.name) {
+      return String(event.city.name).trim();
+    }
+    const anyEvent = event as any;
+    if (anyEvent.City?.name) return String(anyEvent.City.name).trim();
+
+    if (event.venue?.city) return String(event.venue.city).trim();
+    if (anyEvent.venue_city) return String(anyEvent.venue_city).trim();
+
+    const cityId = event.city_id || (typeof event.city === 'number' ? event.city : null);
+    if (cityId && cities.length > 0) {
+      const match = cities.find(
+        (c) => String(c.id) === String(cityId) || String(c.code) === String(cityId)
+      );
+      if (match) return match.name;
+    }
+
+    if (event.location && typeof event.location === 'string' && event.location.trim()) {
+      return event.location.trim();
+    }
+
+    return '';
   };
 
   const getTitle = (event: EventCardData) =>
@@ -179,7 +203,7 @@ function HomeFeedScreen({ navigation }: any) {
 
       return matchesCity && matchesCategory && searchable.includes(query);
     });
-  }, [events, search, selectedCategory, selectedCity]);
+  }, [events, search, selectedCategory, selectedCity, cities]);
 
   const thisWeekEvents = useMemo(() => {
     const now = new Date();
@@ -200,9 +224,15 @@ function HomeFeedScreen({ navigation }: any) {
 
   const renderEventCard = ({ item }: { item: EventCardData }) => {
     const image = getImage(item);
-    const city = getCityName(item);
+    const resolvedCity = getCityName(item);
     const date = getDate(item);
     const isFav = !!favorites[item.id || 0];
+
+    // Combine location/venue and city nicely (e.g., "Koramangala, Bengaluru")
+    const venueLocation = item.venue?.name || item.location?.trim() || '';
+    const locationCityText =
+      [venueLocation, resolvedCity].filter(Boolean).join(', ') ||
+      'Location yet to be announced';
 
     return (
       <TouchableOpacity
@@ -231,7 +261,7 @@ function HomeFeedScreen({ navigation }: any) {
               activeOpacity={0.7}
             >
               <Ionicons
-                name={isFav ? 'heart' : 'heart-outline'}
+                name={isFav ? 'bookmark' : 'bookmark-outline'}
                 size={16}
                 color={isFav ? colors.accent : '#FFFFFF'}
               />
@@ -252,13 +282,7 @@ function HomeFeedScreen({ navigation }: any) {
           <View style={styles.cardLocationRow}>
             <Ionicons name="location-sharp" size={12} color={colors.textDim} />
             <Text style={styles.cardLocationText} numberOfLines={1}>
-              {item.city_name || 'Location yet to be announced'}
-            </Text>
-          </View>
-          <View style={styles.cardLocationRow}>
-            <Ionicons name="location-sharp" size={12} color={colors.textDim} />
-            <Text style={styles.cardLocationText} numberOfLines={1}>
-              {item.city_name ||  'Location yet to be announced'}
+              {locationCityText}
             </Text>
           </View>
 
@@ -374,6 +398,10 @@ function HomeFeedScreen({ navigation }: any) {
             >
               {thisWeekEvents.map((item, idx) => {
                 const bgImg = getImage(item);
+                const itemCity = getCityName(item);
+                const itemLocation = item.venue?.name || item.location?.trim() || '';
+                const itemLocationFull = [itemLocation, itemCity].filter(Boolean).join(', ');
+
                 return (
                   <TouchableOpacity
                     key={item.id?.toString() || idx.toString()}
@@ -396,7 +424,7 @@ function HomeFeedScreen({ navigation }: any) {
 
                         <View style={styles.carouselInfo}>
                           <Text style={styles.carouselDateText}>
-                            {getDate(item)} • {getCityName(item)}
+                            {getDate(item)} {itemLocationFull ? `• ${itemLocationFull}` : ''}
                           </Text>
                           <Text style={styles.carouselTitle} numberOfLines={2}>
                             {getTitle(item)}
@@ -489,7 +517,6 @@ function HomeFeedScreen({ navigation }: any) {
         }
       />
 
-      {/* City Selection Dropdown / Bottom Sheet Modal */}
       <Modal
         visible={isCityModalVisible}
         transparent
@@ -625,8 +652,6 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     marginBottom: 8,
   },
-
-  // Navbar
   navbar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -668,8 +693,6 @@ const styles = StyleSheet.create({
   profileAvatar: {
     padding: 2,
   },
-
-  // Search Bar
   searchBarWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -687,8 +710,6 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
   },
-
-  // Category Pills
   categoryScroll: {
     gap: 8,
     paddingBottom: 18,
@@ -716,8 +737,6 @@ const styles = StyleSheet.create({
   categoryPillTextActive: {
     color: '#FFFFFF',
   },
-
-  // Section Typography
   sectionTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -746,8 +765,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-
-  // Carousel
   carouselSection: {
     marginBottom: 20,
   },
@@ -835,8 +852,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
-
-  // Fallback for No Week Events
   noWeekEventsCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -861,8 +876,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-
-  // 2 in a Row Grid Cards
   columnWrapper: {
     justifyContent: 'space-between',
     marginBottom: 14,
@@ -974,8 +987,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 1,
   },
-
-  // Footer
   footerContainer: {
     marginTop: 20,
     gap: 14,
@@ -1018,8 +1029,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
-
-  // Empty State
   emptyContainer: {
     alignItems: 'center',
     paddingVertical: 48,
@@ -1046,8 +1055,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-
-  // City Picker Modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
@@ -1101,8 +1108,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-
-  // Floating Tab Bar
   floatingTabBar: {
     position: 'absolute',
     bottom: 20,
