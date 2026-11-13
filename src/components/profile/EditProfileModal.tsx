@@ -200,7 +200,6 @@ export const EditProfileModal = ({
               </Text>
               <Ionicons name="calendar-outline" size={18} color={COLORS.grey} />
             </TouchableOpacity>
-            <Text style={styles.inputHint}>Minimum age requirement is 16 years.</Text>
 
             {showDatePicker && (
               <View style={Platform.OS === 'ios' ? styles.iosPickerContainer : undefined}>
