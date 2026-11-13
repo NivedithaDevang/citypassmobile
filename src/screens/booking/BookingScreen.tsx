@@ -15,7 +15,8 @@ import { COLORS } from '../../constants/Color';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { api } from '../../services/api';
 import { type EventWithTickets, type EventTicket } from '../EventDetailsScreen';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 type Props = {
   route: {
     params?: {
@@ -32,33 +33,26 @@ type Props = {
   navigation: any;
 };
 
-const colors = COLORS; 
+const colors = COLORS;
 
 export default function BookingScreen({ route, navigation }: Props) {
   const event = route.params?.event;
 
-  // Tickets state
   const [ticketList, setTicketList] = useState<EventTicket[]>(() => {
-    const directList = event?.event_tickets || event?.tickets || [];
-    return directList;
+    return event?.event_tickets || event?.tickets || [];
   });
   const [loadingTickets, setLoadingTickets] = useState<boolean>(false);
-  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
 
-  // Selected Category
   const [selectedTicketId, setSelectedTicketId] = useState<number | null>(
     event?.selected_ticket_id ?? ticketList[0]?.id ?? null
   );
 
-  // Booking states
   const [quantity, setQuantity] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [showReviewModal, setShowReviewModal] = useState<boolean>(false);
 
-  // Capacity check
   const capacityLeft = event?.available_capacity ?? 10;
 
-  // Load ticket categories from server if not pre-populated in route
   useEffect(() => {
     if (ticketList.length > 0 || !event?.id) return;
 
@@ -115,7 +109,6 @@ export default function BookingScreen({ route, navigation }: Props) {
     return ticketList.find((t) => t.id === selectedTicketId) || ticketList[0];
   }, [ticketList, selectedTicketId]);
 
-  // Billing breakdown
   const ticketUnitPrice = Number(activeTicket?.price ?? 0);
   const totalAmount = ticketUnitPrice * quantity;
   const maxAllowedTickets = Math.min(10, Math.max(0, capacityLeft));
@@ -190,39 +183,57 @@ export default function BookingScreen({ route, navigation }: Props) {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* Top Header */}
-      <SafeAreaProvider style={styles.headerSafeArea}>
+      {/* Fixed SafeArea Header */}
+      <SafeAreaView edges={['top']} style={styles.headerSafeArea}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}
             activeOpacity={0.8}
           >
-            <Ionicons name="arrow-back" size={22} color={colors.white} />
+            <Ionicons name="arrow-back" size={20} color={colors.white} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Book Pass</Text>
+          <Text style={styles.headerTitle}>Checkout</Text>
           <View style={{ width: 40 }} />
         </View>
-      </SafeAreaProvider>
+      </SafeAreaView>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* 1. Event Name, Date, and Time */}
+        {/* 1. Event Summary Card */}
         <View style={styles.eventCard}>
-          <Text style={styles.eventBadge}>EVENT DETAILS</Text>
+          <View style={styles.eventHeaderRow}>
+            <View style={styles.eventBadgePill}>
+              <Ionicons name="sparkles" size={11} color={colors.primaryLight} />
+              <Text style={styles.eventBadge}>EVENT TICKET</Text>
+            </View>
+
+            {capacityLeft > 0 && capacityLeft <= 5 && (
+              <View style={styles.urgencyBadge}>
+                <Text style={styles.urgencyText}>Only {capacityLeft} left</Text>
+              </View>
+            )}
+          </View>
+
           <Text style={styles.eventName}>{event?.name || 'Untitled Event'}</Text>
 
+          <View style={styles.metaDivider} />
+
           <View style={styles.metaRow}>
-            <Ionicons name="calendar-outline" size={17} color={COLORS.primaryLight} />
+            <View style={styles.metaIconBox}>
+              <Ionicons name="calendar-outline" size={15} color={colors.primaryLight} />
+            </View>
             <Text style={styles.metaText}>
               {event?.event_date || 'Date TBA'} {event?.time ? `• ${event.time}` : ''}
             </Text>
           </View>
 
           <View style={styles.metaRow}>
-            <Ionicons name="location-outline" size={17} color={COLORS.primaryLight} />
+            <View style={styles.metaIconBox}>
+              <Ionicons name="location-outline" size={15} color={colors.primaryLight} />
+            </View>
             <Text style={styles.metaText} numberOfLines={1}>
               {event?.city_name ? `${event.city_name} — ` : ''}
               {event?.location || 'Venue TBA'}
@@ -230,85 +241,58 @@ export default function BookingScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* 2. Ticket Category (Custom Dropdown matching Web) */}
-        <Text style={styles.sectionHeading}>Ticket Category</Text>
-        <View style={styles.dropdownContainer}>
-          <TouchableOpacity
-            style={[styles.dropdownTrigger, isDropdownOpen && styles.dropdownTriggerActive]}
-            onPress={() => setIsDropdownOpen((prev) => !prev)}
-            disabled={loadingTickets || ticketList.length === 0}
-            activeOpacity={0.85}
-          >
-            {loadingTickets ? (
-              <Text style={styles.placeholderText}>Loading ticket tiers...</Text>
-            ) : activeTicket ? (
-              <View style={styles.selectedTierRow}>
-                <Text style={styles.selectedTierName}>{activeTicket.name}</Text>
-                <Text style={styles.selectedTierPrice}>
-                  ₹{Number(activeTicket.price).toLocaleString('en-IN')}
-                </Text>
-              </View>
-            ) : (
-              <Text style={styles.placeholderText}>Select Category</Text>
-            )}
-
-            <Ionicons
-              name={isDropdownOpen ? 'chevron-up' : 'chevron-down'}
-              size={18}
-              color={colors.grey}
-            />
-          </TouchableOpacity>
-
-          {isDropdownOpen && (
-            <View style={styles.dropdownMenu}>
-              {ticketList.map((tier) => {
-                const isSelected = activeTicket?.id === tier.id;
-                return (
-                  <TouchableOpacity
-                    key={tier.id}
-                    style={[styles.dropdownItem, isSelected && styles.dropdownItemSelected]}
-                    onPress={() => {
-                      setSelectedTicketId(tier.id);
-                      setIsDropdownOpen(false);
-                    }}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.dropdownItemName}>{tier.name}</Text>
-                      {tier.description ? (
-                        <Text style={styles.dropdownItemDesc}>{tier.description}</Text>
-                      ) : null}
-                    </View>
-
-                    <Text style={styles.dropdownItemPrice}>
-                      ₹{Number(tier.price).toLocaleString('en-IN')}
-                    </Text>
-
-                    {isSelected && (
-                      <Ionicons
-                        name="checkmark"
-                        size={18}
-                        color={colors.purple}
-                        style={{ marginLeft: 8 }}
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          )}
-
-          {activeTicket?.description && !isDropdownOpen && (
-            <Text style={styles.tierDescriptionText}>{activeTicket.description}</Text>
-          )}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeading}>Select Ticket Category</Text>
         </View>
 
-        {/* 3. Ticket Quantity Counter */}
+        {loadingTickets ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="small" color={colors.purple} />
+            <Text style={styles.placeholderText}>Loading ticket tiers...</Text>
+          </View>
+        ) : (
+          <View style={styles.tierListContainer}>
+            {ticketList.map((tier) => {
+              const isSelected = activeTicket?.id === tier.id;
+              return (
+                <TouchableOpacity
+                  key={tier.id}
+                  style={[styles.tierCard, isSelected && styles.tierCardSelected]}
+                  onPress={() => setSelectedTicketId(tier.id)}
+                  activeOpacity={0.85}
+                >
+                  <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
+                    {isSelected && <View style={styles.radioInner} />}
+                  </View>
+
+                  <View style={styles.tierInfo}>
+                    <Text style={styles.tierName}>{tier.name}</Text>
+                    {tier.description ? (
+                      <Text style={styles.tierDesc} numberOfLines={2}>
+                        {tier.description}
+                      </Text>
+                    ) : null}
+                  </View>
+
+                  <View style={styles.tierPriceBox}>
+                    <Text style={[styles.tierPrice, isSelected && styles.tierPriceSelected]}>
+                      ₹{Number(tier.price).toLocaleString('en-IN')}
+                    </Text>
+                    <Text style={styles.tierPerLabel}>/ ticket</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+
+        {/* 3. Quantity Stepper */}
         <Text style={styles.sectionHeading}>Quantity</Text>
         <View style={styles.quantityCard}>
           <View>
             <Text style={styles.quantityTitle}>Number of Passes</Text>
             <Text style={styles.quantitySub}>
-              ₹{ticketUnitPrice.toLocaleString('en-IN')} / pass
+              Max {maxAllowedTickets} per booking
             </Text>
           </View>
 
@@ -327,6 +311,7 @@ export default function BookingScreen({ route, navigation }: Props) {
             <TouchableOpacity
               style={[
                 styles.stepBtn,
+                styles.stepBtnPrimary,
                 (quantity >= maxAllowedTickets || capacityLeft <= 0) && styles.stepBtnDisabled,
               ]}
               onPress={handleIncrement}
@@ -338,22 +323,24 @@ export default function BookingScreen({ route, navigation }: Props) {
           </View>
         </View>
 
-        {/* Price Breakdown */}
-        <Text style={styles.sectionHeading}>Price Breakdown</Text>
+        {/* 4. Ticket-Stub Style Price Breakdown */}
+        <Text style={styles.sectionHeading}>Bill Summary</Text>
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>
-              {activeTicket?.name ?? 'Ticket'} (×{quantity})
+              {activeTicket?.name ?? 'Ticket'} × {quantity}
             </Text>
             <Text style={styles.summaryVal}>₹{totalAmount.toLocaleString('en-IN')}</Text>
           </View>
 
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Convenience Fee</Text>
-            <Text style={styles.freeTag}>FREE</Text>
+            <Text style={styles.summaryLabel}>Platform & Convenience Fee</Text>
+            <View style={styles.freeBadge}>
+              <Text style={styles.freeTag}>FREE</Text>
+            </View>
           </View>
 
-          <View style={styles.divider} />
+          <View style={styles.dashedDivider} />
 
           <View style={styles.summaryRow}>
             <Text style={styles.totalLabel}>Total Payable</Text>
@@ -362,10 +349,12 @@ export default function BookingScreen({ route, navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* 4. Pay Action Bar */}
+      {/* Bottom Sticky Checkout Bar */}
       <View style={styles.bottomBar}>
         <View>
-          <Text style={styles.bottomLabel}>TOTAL</Text>
+          <Text style={styles.bottomLabel}>
+            {quantity} {quantity > 1 ? 'PASSES' : 'PASS'} • TOTAL
+          </Text>
           <Text style={styles.bottomPrice}>₹{totalAmount.toLocaleString('en-IN')}</Text>
         </View>
 
@@ -376,13 +365,13 @@ export default function BookingScreen({ route, navigation }: Props) {
           activeOpacity={0.85}
         >
           <Text style={styles.payBtnText}>
-            {capacityLeft <= 0 ? 'Sold Out' : `Pay ₹${totalAmount.toLocaleString('en-IN')}`}
+            {capacityLeft <= 0 ? 'Sold Out' : 'Proceed to Pay'}
           </Text>
-          <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
-      {/* Review Modal */}
+      {/* Bottom Sheet Confirmation Modal */}
       <Modal
         visible={showReviewModal}
         transparent
@@ -390,36 +379,38 @@ export default function BookingScreen({ route, navigation }: Props) {
         onRequestClose={() => setShowReviewModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalIconBox}>
-              <Ionicons name="help-circle-outline" size={36} color={colors.purple} />
-            </View>
+          <View style={styles.modalSheet}>
+            <View style={styles.sheetHandle} />
 
-            <Text style={styles.modalTitle}>Confirm Your Booking</Text>
-            <Text style={styles.modalSubtitle}>Please review your reservation details below.</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Confirm Your Booking</Text>
+              <Text style={styles.modalSubtitle}>Review your ticket details before confirming</Text>
+            </View>
 
             <View style={styles.modalDetailsList}>
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Event:</Text>
-                <Text style={styles.detailValue}>{event?.name}</Text>
+                <Text style={styles.detailLabel}>Event</Text>
+                <Text style={styles.detailValue} numberOfLines={1}>
+                  {event?.name}
+                </Text>
               </View>
 
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Category:</Text>
+                <Text style={styles.detailLabel}>Category</Text>
                 <Text style={[styles.detailValue, { color: colors.primaryLight }]}>
                   {activeTicket?.name}
                 </Text>
               </View>
 
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Passes:</Text>
+                <Text style={styles.detailLabel}>Quantity</Text>
                 <Text style={styles.detailValue}>
                   {quantity} Pass{quantity > 1 ? 'es' : ''}
                 </Text>
               </View>
 
               <View style={[styles.detailRow, styles.detailRowTotal]}>
-                <Text style={styles.detailLabelBold}>Total Amount:</Text>
+                <Text style={styles.detailLabelBold}>Amount to Pay</Text>
                 <Text style={styles.detailValBold}>₹{totalAmount.toLocaleString('en-IN')}</Text>
               </View>
             </View>
@@ -430,7 +421,7 @@ export default function BookingScreen({ route, navigation }: Props) {
                 onPress={() => setShowReviewModal(false)}
                 disabled={isSubmitting}
               >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>Edit</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -441,7 +432,9 @@ export default function BookingScreen({ route, navigation }: Props) {
                 {isSubmitting ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.modalConfirmText}>Confirm & Pay</Text>
+                  <Text style={styles.modalConfirmText}>
+                    Confirm ₹{totalAmount.toLocaleString('en-IN')}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -459,22 +452,23 @@ const styles = StyleSheet.create({
   },
   headerSafeArea: {
     backgroundColor: colors.surface,
-  },
-  header: {
-    paddingTop: Platform.OS === 'android' ? 36 : 8,
-    paddingHorizontal: 16,
-    paddingBottom: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
+  header: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: colors.surfaceLight,
+    borderWidth: 1,
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -482,42 +476,88 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 17,
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 110,
+    paddingBottom: 120,
   },
   eventCard: {
     backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 20,
+    marginBottom: 22,
+  },
+  eventHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  eventBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(139, 92, 246, 0.14)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
   },
   eventBadge: {
     color: colors.primaryLight,
     fontSize: 10,
     fontWeight: '800',
-    letterSpacing: 1,
-    marginBottom: 6,
+    letterSpacing: 0.8,
+  },
+  urgencyBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  urgencyText: {
+    color: '#FBBF24',
+    fontSize: 11,
+    fontWeight: '700',
   },
   eventName: {
     color: colors.white,
-    fontSize: 19,
+    fontSize: 20,
     fontWeight: '800',
-    marginBottom: 10,
+    lineHeight: 26,
+  },
+  metaDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: 12,
   },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
     marginTop: 6,
+  },
+  metaIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: colors.surfaceLight,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   metaText: {
     color: colors.grey,
     fontSize: 13,
+    fontWeight: '500',
     flex: 1,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   sectionHeading: {
     color: colors.white,
@@ -525,81 +565,89 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 10,
   },
-  dropdownContainer: {
-    marginBottom: 20,
+  sectionSubText: {
+    color: colors.grey,
+    fontSize: 12,
+    marginBottom: 10,
   },
-  dropdownTrigger: {
+  loadingBox: {
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    padding: 20,
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dropdownTriggerActive: {
-    borderColor: colors.purple,
-  },
-  selectedTierRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  selectedTierName: {
-    color: colors.white,
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  selectedTierPrice: {
-    color: colors.primaryLight,
-    fontSize: 15,
-    fontWeight: '700',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 22,
   },
   placeholderText: {
     color: colors.grey,
-    fontSize: 14,
+    fontSize: 13,
   },
-  dropdownMenu: {
-    backgroundColor: colors.surfaceLight,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    marginTop: 8,
-    overflow: 'hidden',
+  tierListContainer: {
+    gap: 10,
+    marginBottom: 22,
   },
-  dropdownItem: {
+  tierCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 16,
     padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    gap: 12,
   },
-  dropdownItemSelected: {
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+  tierCardSelected: {
+    borderColor: colors.purple,
+    backgroundColor: 'rgba(139, 92, 246, 0.10)',
   },
-  dropdownItemName: {
+  radioOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.grey,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioOuterSelected: {
+    borderColor: colors.purple,
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.purple,
+  },
+  tierInfo: {
+    flex: 1,
+  },
+  tierName: {
     color: colors.white,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  dropdownItemDesc: {
-    color: colors.grey,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  dropdownItemPrice: {
-    color: colors.green,
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
   },
-  tierDescriptionText: {
+  tierDesc: {
     color: colors.grey,
     fontSize: 12,
-    marginTop: 8,
-    paddingHorizontal: 4,
+    marginTop: 3,
+    lineHeight: 16,
+  },
+  tierPriceBox: {
+    alignItems: 'flex-end',
+  },
+  tierPrice: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  tierPriceSelected: {
+    color: colors.green,
+  },
+  tierPerLabel: {
+    color: colors.grey,
+    fontSize: 10,
   },
   quantityCard: {
     flexDirection: 'row',
@@ -607,10 +655,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 20,
+    marginBottom: 22,
   },
   quantityTitle: {
     color: colors.white,
@@ -630,30 +678,34 @@ const styles = StyleSheet.create({
   stepBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 12,
     backgroundColor: colors.surfaceLight,
     borderWidth: 1,
     borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  stepBtnPrimary: {
+    backgroundColor: colors.purple,
+    borderColor: colors.purple,
+  },
   stepBtnDisabled: {
     opacity: 0.35,
   },
   quantityText: {
     color: colors.white,
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
-    minWidth: 20,
+    minWidth: 22,
     textAlign: 'center',
   },
   summaryCard: {
     backgroundColor: colors.surface,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 10,
+    gap: 12,
   },
   summaryRow: {
     flexDirection: 'row',
@@ -666,18 +718,25 @@ const styles = StyleSheet.create({
   },
   summaryVal: {
     color: colors.white,
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
+  },
+  freeBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.14)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
   },
   freeTag: {
     color: colors.green,
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
   },
-  divider: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 4,
+  dashedDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+    borderStyle: 'dashed',
+    marginVertical: 2,
   },
   totalLabel: {
     color: colors.white,
@@ -686,7 +745,7 @@ const styles = StyleSheet.create({
   },
   totalVal: {
     color: colors.green,
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '900',
   },
   bottomBar: {
@@ -694,11 +753,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#111017',
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 14,
     paddingBottom: Platform.OS === 'ios' ? 30 : 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -706,22 +765,23 @@ const styles = StyleSheet.create({
   },
   bottomLabel: {
     color: colors.grey,
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.8,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.6,
   },
   bottomPrice: {
     color: colors.white,
     fontSize: 22,
     fontWeight: '900',
+    marginTop: 1,
   },
   payBtn: {
     backgroundColor: colors.purple,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 13,
+    paddingHorizontal: 22,
+    paddingVertical: 14,
     borderRadius: 14,
   },
   payBtnDisabled: {
@@ -734,49 +794,68 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    justifyContent: 'flex-end',
   },
-  modalCard: {
+  modalSheet: {
     backgroundColor: colors.surface,
-    borderRadius: 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
     padding: 20,
-    borderWidth: 1,
+    paddingBottom: Platform.OS === 'ios' ? 36 : 24,
+    borderTopWidth: 1,
     borderColor: colors.border,
   },
-  modalIconBox: {
+  sheetHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  modalHeader: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 18,
+  },
+  modalIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
   },
   modalTitle: {
     color: colors.white,
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: '800',
-    textAlign: 'center',
   },
   modalSubtitle: {
     color: colors.grey,
     fontSize: 12,
-    textAlign: 'center',
     marginTop: 4,
-    marginBottom: 16,
   },
   modalDetailsList: {
     backgroundColor: colors.surfaceLight,
-    padding: 14,
-    borderRadius: 12,
-    gap: 8,
+    padding: 16,
+    borderRadius: 16,
+    gap: 10,
     marginBottom: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   detailRowTotal: {
     borderTopWidth: 1,
     borderTopColor: colors.border,
-    paddingTop: 8,
+    borderStyle: 'dashed',
+    paddingTop: 12,
     marginTop: 4,
   },
   detailLabel: {
@@ -787,6 +866,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 13,
     fontWeight: '700',
+    maxWidth: '65%',
   },
   detailLabelBold: {
     color: colors.white,
@@ -795,7 +875,7 @@ const styles = StyleSheet.create({
   },
   detailValBold: {
     color: colors.green,
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '900',
   },
   modalBtnRow: {
@@ -805,25 +885,27 @@ const styles = StyleSheet.create({
   modalCancelBtn: {
     flex: 1,
     backgroundColor: colors.surfaceLight,
-    paddingVertical: 13,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalCancelText: {
-    color: colors.grey,
+    color: colors.white,
     fontSize: 14,
     fontWeight: '700',
   },
   modalConfirmBtn: {
-    flex: 1,
+    flex: 2,
     backgroundColor: colors.purple,
-    paddingVertical: 13,
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: 'center',
   },
   modalConfirmText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
   },
 });
