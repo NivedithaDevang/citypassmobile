@@ -12,21 +12,18 @@ import {
   Platform,
   Dimensions,
   Modal,
-  ActivityIndicator,
-  RefreshControl,
 } from 'react-native';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Ionicons from '@react-native-vector-icons/ionicons';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS } from '../../constants/Color';
+import {COLORS} from '../../constants/Color';
 import EventScreen from '../home/EventScreen';
 import ProfileScreen from '../home/ProfileScreen';
 import { api } from '../../services/api';
 import { type Events } from '../../types/auth';
 
 const { width } = Dimensions.get('window');
-const HORIZONTAL_CARD_WIDTH = width * 0.64;
 
 type CityItem = {
   id: string | number;
@@ -40,15 +37,10 @@ type EventCardData = Events & {
   name?: string;
   city?: string | { id?: string | number; name?: string } | null;
   city_name?: string | null;
-  city_id?: string | number | null;
-  venue?: { name?: string; city?: string } | null;
   image?: string;
   image_url?: string;
-  poster_url?: string;
-  banner_image?: string;
   location?: string;
   price?: number | string;
-  starting_price?: number | string;
   event_date?: string;
   date?: string;
   category?: string | { name?: string };
@@ -57,29 +49,23 @@ type EventCardData = Events & {
 
 const colors = COLORS;
 
+const CATEGORIES = [
+  { id: 'all', name: 'All Vibe', icon: 'sparkles' },
+  { id: 'music', name: 'Music & Concerts', icon: 'musical-notes' },
+  { id: 'comedy', name: 'Standup Comedy', icon: 'happy' },
+  { id: 'nightlife', name: 'Nightlife & Parties', icon: 'wine' },
+  { id: 'workshops', name: 'Workshops', icon: 'brush' },
+  { id: 'theatre', name: 'Theatre & Plays', icon: 'film' },
+];
+
 function HomeFeedScreen({ navigation }: any) {
   const [events, setEvents] = useState<EventCardData[]>([]);
-  const [activities, setActivities] = useState<EventCardData[]>([]);
-  const [concerts, setConcerts] = useState<EventCardData[]>([]);
-
   const [cities, setCities] = useState<CityItem[]>([]);
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [isCityModalVisible, setIsCityModalVisible] = useState(false);
   const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
   const [favorites, setFavorites] = useState<Record<string | number, boolean>>({});
-  const [loading, setLoading] = useState<boolean>(true);
-  const [refreshing, setRefreshing] = useState<boolean>(false);
-
-  const normalizeList = (rawData: any): EventCardData[] => {
-    if (Array.isArray(rawData)) return rawData;
-    return (
-      rawData?.events ||
-      rawData?.activities ||
-      rawData?.concerts ||
-      rawData?.data ||
-      []
-    );
-  };
 
   useEffect(() => {
     const fetchCities = async () => {
@@ -96,7 +82,7 @@ function HomeFeedScreen({ navigation }: any) {
           }
           return {
             id: item.id || item.code || index,
-            name: item.name || item.cityName || item.city_name || 'Unknown',
+            name: item.name || item.cityName || 'Unknown',
             code: item.code || String(item.id || ''),
           };
         });
@@ -110,91 +96,44 @@ function HomeFeedScreen({ navigation }: any) {
     fetchCities();
   }, []);
 
-  const fetchAllSections = useCallback(async () => {
-    try {
-      const [eventsRes, activitiesRes, concertsRes] = await Promise.allSettled([
-        api.get('/v1/events/events'),
-        api.get('/v1/events/activities'),
-        api.get('/v1/events/concerts'),
-      ]);
-
-      setEvents(
-        eventsRes.status === 'fulfilled'
-          ? normalizeList(eventsRes.value.data)
-          : [],
-      );
-      setActivities(
-        activitiesRes.status === 'fulfilled'
-          ? normalizeList(activitiesRes.value.data)
-          : [],
-      );
-      setConcerts(
-        concertsRes.status === 'fulfilled'
-          ? normalizeList(concertsRes.value.data)
-          : [],
-      );
-    } catch (error) {
-      console.error('Error fetching feed sections:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchAllSections();
-  }, [fetchAllSections]);
+    const fetchEvents = async () => {
+      try {
+        const response = await api.get('/v1/events/events');
+        const rawData = response.data;
+        const eventList: EventCardData[] = Array.isArray(rawData)
+          ? rawData
+          : rawData?.events || rawData?.data || [];
+        setEvents(eventList);
+      } catch (error) {
+        console.error('Error fetching events:', error);
+        setEvents([]);
+      }
+    };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchAllSections();
-    setRefreshing(false);
-  };
+    fetchEvents();
+  }, []);
 
   const toggleFavorite = (id?: string | number) => {
     if (!id) return;
     setFavorites((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const getCityName = useCallback(
-    (event: EventCardData) => {
-      if (typeof event.city === 'string' && event.city.trim()) return event.city.trim();
-      if (typeof event.city_name === 'string' && event.city_name.trim()) return event.city_name.trim();
-
-      if (event.city && typeof event.city === 'object' && 'name' in event.city && event.city.name) {
-        return String(event.city.name).trim();
-      }
-      const anyEvent = event as any;
-      if (anyEvent.City?.name) return String(anyEvent.City.name).trim();
-
-      if (event.venue?.city) return String(event.venue.city).trim();
-      if (anyEvent.venue_city) return String(anyEvent.venue_city).trim();
-
-      const cityId = event.city_id || (typeof event.city === 'number' ? event.city : null);
-      if (cityId && cities.length > 0) {
-        const match = cities.find(
-          (c) => String(c.id) === String(cityId) || String(c.code) === String(cityId),
-        );
-        if (match) return match.name;
-      }
-
-      if (event.location && typeof event.location === 'string' && event.location.trim()) {
-        return event.location.trim();
-      }
-
-      return '';
-    },
-    [cities],
-  );
+  const getCityName = (event: EventCardData) => {
+    if (typeof event.city === 'string' && event.city) return event.city;
+    if (event.city && typeof event.city !== 'string' && event.city.name) return event.city.name;
+    return event.city_name || '';
+  };
 
   const getTitle = (event: EventCardData) =>
     event.title || event.name || 'Special Experience';
 
   const getImage = (event: EventCardData) =>
-    event.image_url || event.poster_url || event.banner_image || event.image || undefined;
+    event.image_url || event.image || undefined;
 
-  const getCategory = (event: EventCardData, fallbackLabel: string) => {
-    if (typeof event.category === 'string' && event.category.trim()) return event.category;
-    return (typeof event.category === 'object' ? event.category?.name : undefined) || event.category_name || fallbackLabel;
+  const getCategory = (event: EventCardData) => {
+    if (typeof event.category === 'string') return event.category;
+    return event.category?.name || event.category_name || 'Experience';
   };
 
   const getDate = (event: EventCardData) => {
@@ -208,91 +147,67 @@ function HomeFeedScreen({ navigation }: any) {
     });
   };
 
-  const getPrice = (event: EventCardData) => {
-    const rawPrice = event.price ?? event.starting_price;
-    if (rawPrice !== undefined && Number(rawPrice) > 0) {
-      return `₹${Number(rawPrice).toLocaleString('en-IN')}`;
-    }
-    return 'FREE';
-  };
-
   const activeCityLabel = useMemo(() => {
     if (selectedCity === 'all') return 'All locations';
     const found = cities.find(
-      (c) => c.name.toLowerCase() === selectedCity.toLowerCase(),
+      (c) => c.name.toLowerCase() === selectedCity.toLowerCase()
     );
     return found ? found.name : selectedCity;
   }, [cities, selectedCity]);
 
-  const filterList = useCallback(
-    (list: EventCardData[]) => {
-      return list.filter((item) => {
-        const city = getCityName(item).toLowerCase();
-        const matchesCity =
-          selectedCity === 'all' || city === selectedCity.toLowerCase();
+  const filteredEvents = useMemo(() => {
+    return events.filter((event) => {
+      const city = getCityName(event).toLowerCase();
+      const matchesCity =
+        selectedCity === 'all' || city === selectedCity.toLowerCase();
 
-        const query = search.trim().toLowerCase();
-        if (!query) return matchesCity;
+      const cat = getCategory(event).toLowerCase();
+      const matchesCategory =
+        selectedCategory === 'all' || cat.includes(selectedCategory);
 
-        const searchable = [
-          getTitle(item),
-          city,
-          item.location || '',
-          getCategory(item, ''),
-        ]
-          .join(' ')
-          .toLowerCase();
+      const query = search.trim().toLowerCase();
+      if (!query) return matchesCity && matchesCategory;
 
-        return matchesCity && searchable.includes(query);
-      });
-    },
-    [getCityName, search, selectedCity],
-  );
+      const searchable = [
+        getTitle(event),
+        city,
+        event.location || '',
+        cat,
+      ]
+        .join(' ')
+        .toLowerCase();
 
-  const filteredEvents = useMemo(() => filterList(events), [events, filterList]);
-  const filteredActivities = useMemo(() => filterList(activities), [activities, filterList]);
-  const filteredConcerts = useMemo(() => filterList(concerts), [concerts, filterList]);
+      return matchesCity && matchesCategory && searchable.includes(query);
+    });
+  }, [events, search, selectedCategory, selectedCity]);
 
-  const thisWeekItems = useMemo(() => {
+  const thisWeekEvents = useMemo(() => {
     const now = new Date();
     const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const endOfWeek = new Date(startOfWeek);
     endOfWeek.setDate(startOfWeek.getDate() + 7);
 
-    const combined = [...events, ...activities, ...concerts];
-    const seen = new Set<string>();
-
-    return combined.filter((item) => {
-      const uniqueKey = `${item.id ?? getTitle(item)}`;
-      if (seen.has(uniqueKey)) return false;
-
+    return events.filter((item) => {
       const rawDate = item.event_date || item.date;
       if (!rawDate) return false;
 
       const eventDate = new Date(rawDate);
       if (Number.isNaN(eventDate.getTime())) return false;
 
-      const inWeek = eventDate >= startOfWeek && eventDate < endOfWeek;
-      if (inWeek) seen.add(uniqueKey);
-      return inWeek;
+      return eventDate >= startOfWeek && eventDate < endOfWeek;
     });
-  }, [events, activities, concerts]);
+  }, [events]);
 
-  const renderHorizontalCard = (item: EventCardData, fallbackBadge: string) => {
+  const renderEventCard = ({ item }: { item: EventCardData }) => {
     const image = getImage(item);
-    const resolvedCity = getCityName(item);
+    const city = getCityName(item);
     const date = getDate(item);
     const isFav = !!favorites[item.id || 0];
-
-    const venueLocation = item.venue?.name || item.location?.trim() || '';
-    const locationCityText =
-      [venueLocation, resolvedCity].filter(Boolean).join(', ') ||
-      'Location TBA';
 
     return (
       <TouchableOpacity
         activeOpacity={0.88}
-        style={styles.horizontalCard}
+        style={styles.card}
         onPress={() => navigation.navigate('EventDetails', { event: item })}
       >
         <View style={styles.cardImageContainer}>
@@ -307,7 +222,7 @@ function HomeFeedScreen({ navigation }: any) {
           <View style={styles.cardTopRow}>
             <View style={styles.categoryBadge}>
               <Text style={styles.categoryBadgeText} numberOfLines={1}>
-                {getCategory(item, fallbackBadge).toUpperCase()}
+                {getCategory(item).toUpperCase()}
               </Text>
             </View>
             <TouchableOpacity
@@ -316,7 +231,7 @@ function HomeFeedScreen({ navigation }: any) {
               activeOpacity={0.7}
             >
               <Ionicons
-                name={isFav ? 'bookmark' : 'bookmark-outline'}
+                name={isFav ? 'heart' : 'heart-outline'}
                 size={16}
                 color={isFav ? colors.accent : '#FFFFFF'}
               />
@@ -337,72 +252,213 @@ function HomeFeedScreen({ navigation }: any) {
           <View style={styles.cardLocationRow}>
             <Ionicons name="location-sharp" size={12} color={colors.textDim} />
             <Text style={styles.cardLocationText} numberOfLines={1}>
-              {locationCityText}
+              {item.city_name || 'Location yet to be announced'}
+            </Text>
+          </View>
+          <View style={styles.cardLocationRow}>
+            <Ionicons name="location-sharp" size={12} color={colors.textDim} />
+            <Text style={styles.cardLocationText} numberOfLines={1}>
+              {item.city_name ||  'Location yet to be announced'}
             </Text>
           </View>
 
           <View style={styles.cardFooter}>
-            <View>
-              <Text style={styles.priceLabel}>Starting from</Text>
-              <Text style={styles.priceValue}>{getPrice(item)}</Text>
-            </View>
-            <View style={styles.miniBookPill}>
-              <Text style={styles.miniBookPillText}>Get Tickets</Text>
-            </View>
+            <Text style={styles.priceLabel}>Starting from</Text>
+            <Text style={styles.priceValue}>
+              {item.price !== undefined && Number(item.price) > 0
+                ? `₹${Number(item.price).toLocaleString('en-IN')}`
+                : 'FREE'}
+            </Text>
           </View>
         </View>
       </TouchableOpacity>
     );
   };
 
-  const renderHorizontalSection = ({
-    eyebrow,
-    title,
-    data,
-    fallbackBadge,
-    emptyText,
-    onSeeAll,
-  }: {
-    eyebrow: string;
-    title: string;
-    data: EventCardData[];
-    fallbackBadge: string;
-    emptyText: string;
-    onSeeAll?: () => void;
-  }) => (
-    <View style={styles.sectionBlock}>
-      <View style={styles.sectionTitleRow}>
-        <View>
-          <Text style={styles.sectionEyebrow}>{eyebrow}</Text>
-          <Text style={styles.sectionHeading}>{title}</Text>
-        </View>
-        <View style={styles.sectionRightMeta}>
-          <Text style={styles.resultCountBadge}>{data.length}</Text>
-          {onSeeAll && data.length > 0 && (
-            <TouchableOpacity onPress={onSeeAll}>
-              <Text style={styles.seeAllLink}>See All</Text>
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
+      <View style={styles.navbar}>
+        <View style={styles.navBrandBlock}>
+          <View style={styles.logoBadge}>
+            <Ionicons name="ticket" size={18} color="#FFFFFF" />
+          </View>
+          <View>
+            <Text style={styles.brandName}>CityPass</Text>
+            <TouchableOpacity
+              style={styles.citySelector}
+              activeOpacity={0.7}
+              onPress={() => setIsCityModalVisible(true)}
+            >
+              <Ionicons name="location-outline" size={12} color={colors.primaryLight} />
+              <Text style={styles.citySelectorText} numberOfLines={1}>
+                {activeCityLabel}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color={colors.primaryLight} />
             </TouchableOpacity>
-          )}
+          </View>
         </View>
+
+        <TouchableOpacity
+          style={styles.profileAvatar}
+          onPress={() => navigation.navigate('Profile')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="person-circle-outline" size={32} color={colors.primaryLight} />
+        </TouchableOpacity>
       </View>
 
-      {data.length > 0 ? (
-        <FlatList
-          horizontal
-          data={data}
-          keyExtractor={(item, idx) => `${fallbackBadge}-${item.id ?? idx}`}
-          renderItem={({ item }) => renderHorizontalCard(item, fallbackBadge)}
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalListContent}
-          snapToInterval={HORIZONTAL_CARD_WIDTH + 14}
-          decelerationRate="fast"
+      <View style={styles.searchBarWrapper}>
+        <Ionicons name="search" size={18} color={colors.textDim} />
+        <TextInput
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search gigs, comedians, venues..."
+          placeholderTextColor={colors.textDim}
+          style={styles.searchInput}
         />
-      ) : (
-        <View style={styles.emptySectionCard}>
-          <Ionicons name="ticket-outline" size={22} color={colors.primaryLight} />
-          <Text style={styles.emptySectionText}>{emptyText}</Text>
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.categoryScroll}
+      >
+        {CATEGORIES.map((cat) => {
+          const isActive = selectedCategory === cat.id;
+          return (
+            <TouchableOpacity
+              key={cat.id}
+              activeOpacity={0.8}
+              style={[styles.categoryPill, isActive && styles.categoryPillActive]}
+              onPress={() => setSelectedCategory(cat.id)}
+            >
+              <Ionicons
+                name={cat.icon as any}
+                size={14}
+                color={isActive ? '#FFFFFF' : colors.primaryLight}
+              />
+              <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>
+                {cat.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {!search && (
+        <View style={styles.carouselSection}>
+          <View style={styles.sectionTitleRow}>
+            <View>
+              <Text style={styles.sectionEyebrow}>DON'T MISS OUT</Text>
+              <Text style={styles.sectionHeading}>Happening This Week</Text>
+            </View>
+            {thisWeekEvents.length > 0 && (
+              <TouchableOpacity onPress={() => navigation.navigate('EventScreen')}>
+                <Text style={styles.seeAllLink}>View All</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {thisWeekEvents.length > 0 ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.carouselScroll}
+              snapToInterval={width * 0.78 + 14}
+              decelerationRate="fast"
+            >
+              {thisWeekEvents.map((item, idx) => {
+                const bgImg = getImage(item);
+                return (
+                  <TouchableOpacity
+                    key={item.id?.toString() || idx.toString()}
+                    activeOpacity={0.92}
+                    style={styles.carouselCard}
+                    onPress={() => navigation.navigate('EventDetails', { event: item })}
+                  >
+                    {bgImg ? (
+                      <ImageBackground
+                        source={{ uri: bgImg }}
+                        style={styles.carouselBg}
+                        imageStyle={{ borderRadius: 20 }}
+                        resizeMode="cover"
+                      >
+                        <View style={styles.carouselGradient} />
+                        <View style={styles.carouselBadgeTop}>
+                          <View style={styles.pulsingDot} />
+                          <Text style={styles.carouselBadgeText}>THIS WEEK</Text>
+                        </View>
+
+                        <View style={styles.carouselInfo}>
+                          <Text style={styles.carouselDateText}>
+                            {getDate(item)} • {getCityName(item)}
+                          </Text>
+                          <Text style={styles.carouselTitle} numberOfLines={2}>
+                            {getTitle(item)}
+                          </Text>
+                          <View style={styles.carouselFooterRow}>
+                            <Text style={styles.carouselPrice}>
+                              {item.price ? `₹${item.price} onwards` : 'Free Entry'}
+                            </Text>
+                            <View style={styles.carouselBookBtn}>
+                              <Text style={styles.carouselBookBtnText}>Book Now</Text>
+                              <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
+                            </View>
+                          </View>
+                        </View>
+                      </ImageBackground>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          ) : (
+            <View style={styles.noWeekEventsCard}>
+              <Ionicons name="calendar-outline" size={26} color={colors.primaryLight} />
+              <View style={styles.noWeekEventsContent}>
+                <Text style={styles.noWeekEventsTitle}>No events this week</Text>
+                <Text style={styles.noWeekEventsSubtext}>
+                  Check out upcoming experiences below or explore all dates.
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
       )}
+
+      <View style={[styles.sectionTitleRow, { marginTop: 8 }]}>
+        <View>
+          <Text style={styles.sectionEyebrow}>HANDPICKED EXPERIENCES</Text>
+          <Text style={styles.sectionHeading}>Explore All Events</Text>
+        </View>
+        <Text style={styles.resultCountBadge}>{filteredEvents.length} events</Text>
+      </View>
+    </View>
+  );
+
+  const renderFooter = () => (
+    <View style={styles.footerContainer}>
+      <View style={styles.quoteCard}>
+        <Ionicons name="chatbubble-outline" size={24} color="rgba(139, 92, 246, 0.4)" style={{ marginBottom: 6 }} />
+        <Text style={styles.quoteText}>
+          "Your city is filled with stories waiting to be lived. Step out and make them yours."
+        </Text>
+        <Text style={styles.quoteAuthor}>— The CityPass Curators</Text>
+      </View>
+
+      <TouchableOpacity
+        style={styles.exploreAllBtn}
+        activeOpacity={0.88}
+        onPress={() => navigation.navigate('Events')}
+      >
+        <Text style={styles.exploreAllBtnText}>Explore All Events in Detail</Text>
+        <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 
@@ -410,221 +466,30 @@ function HomeFeedScreen({ navigation }: any) {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="light" />
 
-      <ScrollView
+      <FlatList
+        data={filteredEvents}
+        renderItem={renderEventCard}
+        keyExtractor={(item, index) => item.id?.toString() || index.toString()}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
+        contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.primaryLight}
-          />
-        }
-      >
-        {/* Top Navbar */}
-        <View style={styles.navbar}>
-          <View style={styles.navBrandBlock}>
-            <View style={styles.logoBadge}>
-              <Ionicons name="ticket" size={18} color="#FFFFFF" />
+        ListHeaderComponent={renderHeader}
+        ListFooterComponent={filteredEvents.length > 0 ? renderFooter : undefined}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="ticket-outline" size={36} color={colors.primaryLight} />
             </View>
-            <View>
-              <Text style={styles.brandName}>CityPass</Text>
-              <TouchableOpacity
-                style={styles.citySelector}
-                activeOpacity={0.7}
-                onPress={() => setIsCityModalVisible(true)}
-              >
-                <Ionicons name="location-outline" size={12} color={colors.primaryLight} />
-                <Text style={styles.citySelectorText} numberOfLines={1}>
-                  {activeCityLabel}
-                </Text>
-                <Ionicons name="chevron-down" size={12} color={colors.primaryLight} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            style={styles.profileAvatar}
-            onPress={() => navigation.navigate('Profile')}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="person-circle-outline" size={32} color={colors.primaryLight} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Input */}
-        <View style={styles.searchBarWrapper}>
-          <Ionicons name="search" size={18} color={colors.textDim} />
-          <TextInput
-            value={search}
-            onChangeText={setSearch}
-            placeholder="Search events, activities, concerts..."
-            placeholderTextColor={colors.textDim}
-            style={styles.searchInput}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Happening This Week Carousel */}
-        {!search && (
-          <View style={styles.carouselSection}>
-            <View style={styles.sectionTitleRow}>
-              <View>
-                <Text style={styles.sectionEyebrow}>DON'T MISS OUT</Text>
-                <Text style={styles.sectionHeading}>Happening This Week</Text>
-              </View>
-              {thisWeekItems.length > 0 && (
-                <TouchableOpacity onPress={() => navigation.navigate('Events')}>
-                  <Text style={styles.seeAllLink}>View All</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {thisWeekItems.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.carouselScroll}
-                snapToInterval={width * 0.78 + 12}
-                decelerationRate="fast"
-              >
-                {thisWeekItems.map((item, idx) => {
-                  const bgImg = getImage(item);
-                  const itemCity = getCityName(item);
-                  const itemLocation = item.venue?.name || item.location?.trim() || '';
-                  const itemLocationFull = [itemLocation, itemCity].filter(Boolean).join(', ');
-
-                  return (
-                    <TouchableOpacity
-                      key={item.id?.toString() || idx.toString()}
-                      activeOpacity={0.92}
-                      style={styles.carouselCard}
-                      onPress={() => navigation.navigate('EventDetails', { event: item })}
-                    >
-                      {bgImg ? (
-                        <ImageBackground
-                          source={{ uri: bgImg }}
-                          style={styles.carouselBg}
-                          imageStyle={{ borderRadius: 20 }}
-                          resizeMode="cover"
-                        >
-                          <View style={styles.carouselGradient} />
-                          <View style={styles.carouselBadgeTop}>
-                            <View style={styles.pulsingDot} />
-                            <Text style={styles.carouselBadgeText}>THIS WEEK</Text>
-                          </View>
-
-                          <View style={styles.carouselInfo}>
-                            <Text style={styles.carouselDateText}>
-                              {getDate(item)} {itemLocationFull ? `• ${itemLocationFull}` : ''}
-                            </Text>
-                            <Text style={styles.carouselTitle} numberOfLines={2}>
-                              {getTitle(item)}
-                            </Text>
-                            <View style={styles.carouselFooterRow}>
-                              <Text style={styles.carouselPrice}>
-                                {item.price ? `₹${item.price} onwards` : 'Free Entry'}
-                              </Text>
-                              <View style={styles.carouselBookBtn}>
-                                <Text style={styles.carouselBookBtnText}>Book Now</Text>
-                                <Ionicons name="arrow-forward" size={13} color="#FFFFFF" />
-                              </View>
-                            </View>
-                          </View>
-                        </ImageBackground>
-                      ) : (
-                        <View style={[styles.carouselBg, styles.cardImageFallback]}>
-                          <Text style={styles.carouselTitle}>{getTitle(item)}</Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
-            ) : (
-              <View style={styles.noWeekEventsCard}>
-                <Ionicons name="calendar-outline" size={26} color={colors.primaryLight} />
-                <View style={styles.noWeekEventsContent}>
-                  <Text style={styles.noWeekEventsTitle}>No events this week</Text>
-                  <Text style={styles.noWeekEventsSubtext}>
-                    Check out upcoming events, activities, and concerts below.
-                  </Text>
-                </View>
-              </View>
-            )}
-          </View>
-        )}
-
-        {loading ? (
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color={colors.primaryLight} />
-            <Text style={styles.loadingText}>Curating your city...</Text>
-          </View>
-        ) : (
-          <>
-            {/* 1. Horizontal Events Section */}
-            {renderHorizontalSection({
-              eyebrow: 'FEATURED LINEUP',
-              title: 'Events',
-              data: filteredEvents,
-              fallbackBadge: 'Event',
-              emptyText: 'No events found for this filter.',
-              onSeeAll: () => navigation.navigate('Events', { initialTab: 'events' }),
-            })}
-
-            {/* 2. Horizontal Activities Section */}
-            {renderHorizontalSection({
-              eyebrow: 'THINGS TO DO',
-              title: 'Activities',
-              data: filteredActivities,
-              fallbackBadge: 'Activity',
-              emptyText: 'No activities found for this filter.',
-              onSeeAll: () => navigation.navigate('Events', { initialTab: 'activities' }),
-            })}
-
-            {/* 3. Horizontal Concerts Section */}
-            {renderHorizontalSection({
-              eyebrow: 'LIVE MUSIC & GIGS',
-              title: 'Concerts',
-              data: filteredConcerts,
-              fallbackBadge: 'Concert',
-              emptyText: 'No concerts found for this filter.',
-              onSeeAll: () => navigation.navigate('Events', { initialTab: 'concerts' }),
-            })}
-          </>
-        )}
-
-        {/* Footer Quote & CTA */}
-        <View style={styles.footerContainer}>
-          <View style={styles.quoteCard}>
-            <Ionicons
-              name="chatbubble-outline"
-              size={24}
-              color="rgba(139, 92, 246, 0.4)"
-              style={{ marginBottom: 6 }}
-            />
-            <Text style={styles.quoteText}>
-              "Your city is filled with stories waiting to be lived. Step out and make them yours."
+            <Text style={styles.emptyTitle}>No experiences match</Text>
+            <Text style={styles.emptyText}>
+              Try picking another city, vibe category, or keyword.
             </Text>
-            <Text style={styles.quoteAuthor}>— The CityPass Curators</Text>
           </View>
+        }
+      />
 
-          <TouchableOpacity
-            style={styles.exploreAllBtn}
-            activeOpacity={0.88}
-            onPress={() => navigation.navigate('Events')}
-          >
-            <Text style={styles.exploreAllBtnText}>Explore All in Detail</Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* City Selection Modal */}
+      {/* City Selection Dropdown / Bottom Sheet Modal */}
       <Modal
         visible={isCityModalVisible}
         transparent
@@ -752,15 +617,20 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
-    paddingTop: 8,
+  listContent: {
+    paddingHorizontal: 16,
     paddingBottom: 120,
   },
+  headerContainer: {
+    paddingTop: 8,
+    marginBottom: 8,
+  },
+
+  // Navbar
   navbar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
     paddingVertical: 10,
     marginBottom: 14,
   },
@@ -798,6 +668,8 @@ const styles = StyleSheet.create({
   profileAvatar: {
     padding: 2,
   },
+
+  // Search Bar
   searchBarWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -806,30 +678,51 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
     paddingHorizontal: 14,
-    marginHorizontal: 16,
     height: 48,
     gap: 10,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   searchInput: {
     flex: 1,
     color: colors.white,
     fontSize: 14,
   },
-  sectionBlock: {
-    marginBottom: 24,
+
+  // Category Pills
+  categoryScroll: {
+    gap: 8,
+    paddingBottom: 18,
   },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 24,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  categoryPillActive: {
+    backgroundColor: colors.purple,
+    borderColor: colors.lavender,
+  },
+  categoryPillText: {
+    color: colors.primaryLight,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  categoryPillTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Section Typography
   sectionTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-end',
-    paddingHorizontal: 16,
     marginBottom: 12,
-  },
-  sectionRightMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
   },
   sectionEyebrow: {
     color: colors.primaryLight,
@@ -840,7 +733,7 @@ const styles = StyleSheet.create({
   },
   sectionHeading: {
     color: colors.white,
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: '800',
   },
   seeAllLink: {
@@ -851,23 +744,19 @@ const styles = StyleSheet.create({
   resultCountBadge: {
     color: colors.textDim,
     fontSize: 12,
-    fontWeight: '700',
-    backgroundColor: colors.card,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    overflow: 'hidden',
+    fontWeight: '600',
   },
+
+  // Carousel
   carouselSection: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   carouselScroll: {
-    paddingHorizontal: 16,
     gap: 12,
   },
   carouselCard: {
     width: width * 0.78,
-    height: 195,
+    height: 200,
     borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: colors.card,
@@ -946,6 +835,8 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
   },
+
+  // Fallback for No Week Events
   noWeekEventsCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -953,7 +844,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 16,
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
@@ -971,20 +861,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
-  horizontalListContent: {
-    paddingHorizontal: 16,
-    gap: 14,
+
+  // 2 in a Row Grid Cards
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 14,
   },
-  horizontalCard: {
-    width: HORIZONTAL_CARD_WIDTH,
+  card: {
+    width: '48.2%',
     backgroundColor: colors.card,
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
   cardImageContainer: {
-    height: 150,
+    height: 128,
     position: 'relative',
     backgroundColor: colors.cardElevated,
   },
@@ -998,9 +890,9 @@ const styles = StyleSheet.create({
   },
   cardTopRow: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
+    top: 8,
+    left: 8,
+    right: 8,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -1019,23 +911,23 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   favButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: 'rgba(11, 8, 20, 0.75)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   dateFloatingTag: {
     position: 'absolute',
-    bottom: 10,
-    left: 10,
+    bottom: 8,
+    left: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: 'rgba(11, 8, 20, 0.85)',
     paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: 3,
     borderRadius: 6,
   },
   dateFloatingText: {
@@ -1044,15 +936,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   cardBody: {
-    padding: 12,
+    padding: 10,
   },
   cardTitle: {
     color: colors.white,
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
-    lineHeight: 19,
-    minHeight: 38,
-    marginBottom: 5,
+    lineHeight: 18,
+    minHeight: 36,
+    marginBottom: 4,
   },
   cardLocationRow: {
     flexDirection: 'row',
@@ -1062,16 +954,13 @@ const styles = StyleSheet.create({
   },
   cardLocationText: {
     color: colors.textMuted,
-    fontSize: 11.5,
+    fontSize: 11,
     flex: 1,
   },
   cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-    paddingTop: 8,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    paddingTop: 6,
   },
   priceLabel: {
     color: colors.textDim,
@@ -1081,48 +970,14 @@ const styles = StyleSheet.create({
   },
   priceValue: {
     color: colors.green,
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '800',
     marginTop: 1,
   },
-  miniBookPill: {
-    backgroundColor: colors.purple,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  miniBookPillText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  emptySectionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 16,
-    padding: 16,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  emptySectionText: {
-    color: colors.textMuted,
-    fontSize: 12.5,
-  },
-  loadingBox: {
-    paddingVertical: 40,
-    alignItems: 'center',
-    gap: 10,
-  },
-  loadingText: {
-    color: colors.textMuted,
-    fontSize: 13,
-  },
+
+  // Footer
   footerContainer: {
-    marginTop: 8,
-    paddingHorizontal: 16,
+    marginTop: 20,
     gap: 14,
     alignItems: 'center',
   },
@@ -1163,6 +1018,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
   },
+
+  // Empty State
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 20,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    color: colors.white,
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 6,
+  },
+  emptyText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+
+  // City Picker Modal
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.72)',
@@ -1216,6 +1101,8 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
+
+  // Floating Tab Bar
   floatingTabBar: {
     position: 'absolute',
     bottom: 20,
